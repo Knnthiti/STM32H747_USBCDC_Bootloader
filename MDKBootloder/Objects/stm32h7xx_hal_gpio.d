@@ -1,0 +1,32 @@
+./objects/stm32h7xx_hal_gpio.o: \
+  ..\libraries\STM32H7xx_HAL_Driver\Src\stm32h7xx_hal_gpio.c \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_conf.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_rcc.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_def.h \
+  ..\libraries\CMSIS\Device\ST\STM32H7xx\Include\stm32h7xx.h \
+  ..\libraries\CMSIS\Device\ST\STM32H7xx\Include\stm32h747xx.h \
+  ..\libraries\CMSIS\Core\Include\core_cm7.h \
+  ..\libraries\CMSIS\Device\ST\STM32H7xx\Include\system_stm32h7xx.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\Legacy\stm32_hal_legacy.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_rcc_ex.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_gpio.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_gpio_ex.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_dma.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_dma_ex.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_mdma.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_exti.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_cortex.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_flash.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_flash_ex.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_hsem.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_i2c.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_i2c_ex.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pwr.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pwr_ex.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_usb.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_utils.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_system.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_bus.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd_ex.h
