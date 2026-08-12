@@ -9,6 +9,7 @@
 ".\objects\stm32h7xx_ll_usart.o"
 ".\objects\stm32h7xx_ll_usb.o"
 ".\objects\stm32h7xx_ll_utils.o"
+".\objects\stm32h7xx_ll_crs.o"
 ".\objects\stm32h7xx_hal.o"
 ".\objects\stm32h7xx_hal_cortex.o"
 ".\objects\stm32h7xx_hal_gpio.o"

@@ -4,9 +4,9 @@
   ..\libraries\CMSIS\Core\Include\core_cm7.h \
   ..\libraries\CMSIS\Device\ST\STM32H7xx\Include\system_stm32h7xx.h \
   ..\BPS\Inc\USB_CDC.h \
-  ..\libraries\STM32_USB_Device_Library_V2\Class\CDC\Inc\usbd_cdc.h \
-  ..\libraries\STM32_USB_Device_Library_V2\Core\Inc\usbd_ioreq.h \
-  ..\libraries\STM32_USB_Device_Library_V2\Core\Inc\usbd_def.h \
+  ..\libraries\STM32_USB_Device_Library\Class\CDC\Inc\usbd_cdc.h \
+  ..\libraries\STM32_USB_Device_Library\Core\Inc\usbd_ioreq.h \
+  ..\libraries\STM32_USB_Device_Library\Core\Inc\usbd_def.h \
   ..\libraries\USB_DEVICE\Target\usbd_conf.h \
   ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal.h \
   ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_conf.h \
@@ -34,10 +34,14 @@
   ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_system.h \
   ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_bus.h \
   ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd_ex.h \
-  ..\libraries\STM32_USB_Device_Library_V2\Core\Inc\usbd_core.h \
-  ..\libraries\STM32_USB_Device_Library_V2\Core\Inc\usbd_ctlreq.h \
   ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_rcc.h \
-  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_crc.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_crs.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_exti.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_cortex.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_pwr.h \
   ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_dma.h \
   ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_dmamux.h \
-  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_gpio.h
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_gpio.h \
+  ..\libraries\STM32_USB_Device_Library\Core\Inc\usbd_core.h \
+  ..\libraries\STM32_USB_Device_Library\Core\Inc\usbd_ctlreq.h \
+  ..\libraries\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_crc.h

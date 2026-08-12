@@ -8,8 +8,13 @@
 #include "stm32h7xx_ll_gpio.h"
 #include "stm32h7xx_ll_system.h"
 
+#include "stm32h7xx_ll_crs.h"
+
 void SystemClock_Init(void);
 void SystemTickConfig(uint32_t u16Frequency,FunctionalState eSysTickSate);
+uint32_t GetTick(void);
+
+extern volatile uint32_t TIME_1ms;
 
 void GPIO_Init(void);
 

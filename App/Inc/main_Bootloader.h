@@ -23,8 +23,4 @@
 #include "usb_device.h" // Include USB device initialization header
 #include "USB_CDC.h"    // Include USB Communication Device Class (CDC) header
 
-/* Global Variables (External Declarations) */
-extern volatile uint8_t TIME_1ms; // External declaration for the 1-millisecond timer variable
-
-
 #endif

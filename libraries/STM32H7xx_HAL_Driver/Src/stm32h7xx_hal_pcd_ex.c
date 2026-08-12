@@ -164,7 +164,7 @@ void HAL_PCDEx_BCD_VBUSDetect(PCD_HandleTypeDef *hpcd)
   USBx->GCCFG |= USB_OTG_GCCFG_DCDEN;
 
   /* Wait for Min DCD Timeout */
-  HAL_Delay(300U);
+  LL_mDelay(300U);
 
   /* Check Detect flag */
   if ((USBx->GCCFG & USB_OTG_GCCFG_DCDET) == USB_OTG_GCCFG_DCDET)
@@ -179,9 +179,9 @@ void HAL_PCDEx_BCD_VBUSDetect(PCD_HandleTypeDef *hpcd)
   /* Primary detection: checks if connected to Standard Downstream Port
   (without charging capability) */
   USBx->GCCFG &= ~USB_OTG_GCCFG_DCDEN;
-  HAL_Delay(50U);
+  LL_mDelay(50U);
   USBx->GCCFG |= USB_OTG_GCCFG_PDEN;
-  HAL_Delay(50U);
+  LL_mDelay(50U);
 
   if ((USBx->GCCFG & USB_OTG_GCCFG_PDET) == 0U)
   {
@@ -197,9 +197,9 @@ void HAL_PCDEx_BCD_VBUSDetect(PCD_HandleTypeDef *hpcd)
     /* start secondary detection to check connection to Charging Downstream
     Port or Dedicated Charging Port */
     USBx->GCCFG &= ~(USB_OTG_GCCFG_PDEN);
-    HAL_Delay(50U);
+    LL_mDelay(50U);
     USBx->GCCFG |= USB_OTG_GCCFG_SDEN;
-    HAL_Delay(50U);
+    LL_mDelay(50U);
 
     if ((USBx->GCCFG & USB_OTG_GCCFG_SDET) == USB_OTG_GCCFG_SDET)
     {

@@ -5,6 +5,38 @@ volatile uint8_t __attribute__((section(".bss.Version_Program"))) Version_Edit;
 uint32_t u32BufferProgram[size_u32BufferProgram];
 volatile uint16_t current_program = 0;
 
+//void bootJumpToApp1(){
+
+//	typedef void (*pFunction)(void);
+//	pFunction vJumpToApp;
+//	uint32_t appStack;
+//	uint32_t appEntry;
+
+//	appStack = *(__IO uint32_t*)FLASH_START_APP1;
+//	appEntry = *(__IO uint32_t*)(FLASH_START_APP1 + 4);
+//	vJumpToApp = (pFunction)appEntry;
+
+//	__disable_irq();
+
+//	SysTick->CTRL = 0;
+//	SysTick->LOAD = 0;
+//	SysTick->VAL = 0;
+//	SCB->ICSR = SCB_ICSR_PENDSTCLR_Msk;
+
+//	for(uint32_t i = 0; i < (sizeof(NVIC->ICER) / sizeof(NVIC->ICER[0])); i++){
+//		NVIC->ICER[i] = 0xFFFFFFFF;
+//		NVIC->ICPR[i] = 0xFFFFFFFF;
+//	}
+
+//	SCB->VTOR = FLASH_START_APP1;
+//	__set_MSP(appStack);
+//	__DSB();
+//	__ISB();
+//	__enable_irq();
+
+//	vJumpToApp();
+//}
+
 void bootJumpToApp1(){ 
 	
 	typedef int (*pFunction)(void);

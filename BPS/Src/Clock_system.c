@@ -3,11 +3,11 @@
 
 void SystemClock_Init(void)
 {
-  LL_FLASH_SetLatency(LL_FLASH_LATENCY_5);
-  while(LL_FLASH_GetLatency()!= LL_FLASH_LATENCY_5)
+  LL_FLASH_SetLatency(LL_FLASH_LATENCY_2);
+  while(LL_FLASH_GetLatency()!= LL_FLASH_LATENCY_2)
   {
   }
-  LL_PWR_ConfigSupply(LL_PWR_SMPS_2V5_SUPPLIES_EXT_AND_LDO);
+  LL_PWR_ConfigSupply(LL_PWR_SMPS_2V5_SUPPLIES_LDO);
   LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE1);
   while (LL_PWR_IsActiveFlag_VOS() == 0)
   {
@@ -19,15 +19,21 @@ void SystemClock_Init(void)
   {
 
   }
-   LL_RCC_PLL_SetSource(LL_RCC_PLLSOURCE_HSE);
+  LL_RCC_HSI48_Enable();
+
+   /* Wait till HSI48 is ready */
+  while(LL_RCC_HSI48_IsReady() != 1)
+  {
+
+  }
+  LL_RCC_PLL_SetSource(LL_RCC_PLLSOURCE_HSE);
   LL_RCC_PLL1P_Enable();
-  LL_RCC_PLL1Q_Enable();
-  LL_RCC_PLL1_SetVCOInputRange(LL_RCC_PLLINPUTRANGE_4_8);
+  LL_RCC_PLL1_SetVCOInputRange(LL_RCC_PLLINPUTRANGE_8_16);
   LL_RCC_PLL1_SetVCOOutputRange(LL_RCC_PLLVCORANGE_WIDE);
-  LL_RCC_PLL1_SetM(5);
-  LL_RCC_PLL1_SetN(48);
+  LL_RCC_PLL1_SetM(2);
+  LL_RCC_PLL1_SetN(64);
   LL_RCC_PLL1_SetP(2);
-  LL_RCC_PLL1_SetQ(5);
+  LL_RCC_PLL1_SetQ(13);
   LL_RCC_PLL1_SetR(2);
   LL_RCC_PLL1_Enable();
 
@@ -53,17 +59,52 @@ void SystemClock_Init(void)
   LL_RCC_SetAPB3Prescaler(LL_RCC_APB3_DIV_2);
   LL_RCC_SetAPB4Prescaler(LL_RCC_APB4_DIV_2);
 
-  LL_Init1msTick(400000000);
   LL_SetSystemCoreClock(400000000);
+	LL_Init1msTick(400000000);
+
+   /* Update the time base */
+//  if (HAL_InitTick (TICK_INT_PRIORITY) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+
+  LL_CRS_SetSyncDivider(LL_CRS_SYNC_DIV_1);
+  LL_CRS_SetSyncPolarity(LL_CRS_SYNC_POLARITY_RISING);
+  LL_CRS_SetSyncSignalSource(LL_CRS_SYNC_SOURCE_USB);
+  LL_CRS_SetReloadCounter(__LL_CRS_CALC_CALCULATE_RELOADVALUE(48000000,1000));
+  LL_CRS_SetFreqErrorLimit(34);
+  LL_CRS_SetHSI48SmoothTrimming(32);
 }
 
 void SystemTickConfig(uint32_t u16Frequency,FunctionalState eSysTickSate){
 	LL_InitTick(SystemCoreClock,u16Frequency);
 	if(eSysTickSate == ENABLE)
 	{
-		SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;
 		NVIC_SetPriority(SysTick_IRQn, 1U);
+		SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;
 	}
+}
+
+
+volatile uint32_t TIME_1ms = 0;
+
+void HAL_IncTick(void)
+{
+	TIME_1ms += 1;
+}
+
+uint32_t HAL_GetTick(void)
+{
+	return TIME_1ms;
+}
+
+void SysTick_Handler(void)
+{
+	HAL_IncTick();
+}
+
+uint32_t GetTick(void) {
+    return TIME_1ms;
 }
 
 void GPIO_Init(void)

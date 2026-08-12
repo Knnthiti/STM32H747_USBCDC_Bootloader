@@ -6,6 +6,7 @@
 ".\objects\stm32h7xx_ll_utils.o"
 ".\objects\clock_system.o"
 ".\objects\main_app.o"
---ro-base 0x08000000 --entry 0x08000000 --rw-base 0x20000000 --entry Reset_Handler --first __Vectors --strict --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--strict --scatter ".\Objects\App.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
 --list ".\Listings\App.map" -o .\Objects\App.axf

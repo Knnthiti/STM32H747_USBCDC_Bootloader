@@ -47,22 +47,23 @@ USBD_HandleTypeDef hUsbDeviceFS;
  * -- Insert your variables declaration here --
  */
 /* USER CODE BEGIN 0 */
-
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
 /* USER CODE END 0 */
 
 /*
  * -- Insert your external function declaration here --
  */
 /* USER CODE BEGIN 1 */
-void Error_Handler(void)
-{
 
-__disable_irq(); // Disable all interrupts to prevent further execution interference
-while (1)
-{
-    // Infinite loop to halt the system safely upon error detection
-}
-}
 /* USER CODE END 1 */
 
 /**
