@@ -114,7 +114,7 @@ uint8_t IsFlash_WaitForOperation(void){
 }
 
 void Clear_errorflags(void){
-	FLASH->SR = (FLASH_SR_FASTERR 	| \
+	FLASH->CR = (FLASH_SR_FASTERR 	| \
 				FLASH_SR_PGSERR 	| \
 				FLASH_SR_SIZERR 	| \
 				FLASH_SR_PGAERR 	| \
@@ -212,14 +212,10 @@ uint8_t B1_Flash_Write(uint32_t u32FlashAddress, uint32_t *u32Data32B, uint16_t 
 		_32byteBufferFlash.u32Buffer[i] = 0xFFFFFFFF;
 	}
 	
-	uint16_t u16WriteCount = (u16DataCount -1) >> 3;
+	uint16_t u16WriteCount = (u16DataCount -1) >> 5;
 	u16WriteCount++;
 	
 	while(u16WriteCount--){
-		for(uint8_t i = 0; i < 8 ; i++){
-			_32byteBufferFlash.u32Buffer[i] = 0xFFFFFFFF;
-		}
-		
 		//Copy data to Buffer 256 bit
 		if(u16DataCount > 8){
 			for(uint8_t i = 0 ; i < 8 ; i++){
@@ -277,8 +273,122 @@ volatile uint16_t current_program;
 uint32_t timeoutStart = 0;
 volatile uint16_t g4_rxIndex = 0;
 volatile uint16_t g4_txIndex = 0;
-volatile uint16_t g4_txLength = 0;
 volatile G4_State_t g4_currentState = G4_STATE_INIT_RX;
+
+#define UART5_DMA_FRAME_SIZE size_u8USARTdata
+#define UART5_RX_DMA_CHANNEL LL_DMA_CHANNEL_2
+#define UART5_TX_DMA_CHANNEL LL_DMA_CHANNEL_3
+
+static void UART5_ClearRxDmaFlags(void)
+{
+    LL_DMA_ClearFlag_TC2(DMA1);
+    LL_DMA_ClearFlag_TE2(DMA1);
+}
+
+static void UART5_ClearTxDmaFlags(void)
+{
+    LL_DMA_ClearFlag_TC3(DMA1);
+    LL_DMA_ClearFlag_TE3(DMA1);
+}
+
+static void UART5_DisableRxDma(void)
+{
+    LL_USART_DisableDMAReq_RX(UART5);
+    LL_DMA_DisableChannel(DMA1, UART5_RX_DMA_CHANNEL);
+    while (LL_DMA_IsEnabledChannel(DMA1, UART5_RX_DMA_CHANNEL)) {}
+}
+
+static void UART5_DisableTxDma(void)
+{
+    LL_USART_DisableDMAReq_TX(UART5);
+    LL_DMA_DisableChannel(DMA1, UART5_TX_DMA_CHANNEL);
+    while (LL_DMA_IsEnabledChannel(DMA1, UART5_TX_DMA_CHANNEL)) {}
+}
+
+static void UART5_FlushRxFlags(void)
+{
+    while (LL_USART_IsActiveFlag_RXNE(UART5)) {
+        (void)LL_USART_ReceiveData8(UART5);
+    }
+
+    if (LL_USART_IsActiveFlag_IDLE(UART5)) {
+        LL_USART_ClearFlag_IDLE(UART5);
+    }
+    if (LL_USART_IsActiveFlag_ORE(UART5)) {
+        LL_USART_ClearFlag_ORE(UART5);
+    }
+    if (LL_USART_IsActiveFlag_FE(UART5)) {
+        LL_USART_ClearFlag_FE(UART5);
+    }
+    if (LL_USART_IsActiveFlag_NE(UART5)) {
+        LL_USART_ClearFlag_NE(UART5);
+    }
+    if (LL_USART_IsActiveFlag_PE(UART5)) {
+        LL_USART_ClearFlag_PE(UART5);
+    }
+}
+
+static void UART5_StartRxDma(void)
+{
+    UART5_DisableRxDma();
+    UART5_ClearRxDmaFlags();
+    UART5_FlushRxFlags();
+
+    g4_rxIndex = 0;
+    RX_USART_Data = (_USARTData){0x00};
+
+    LL_DMA_ConfigAddresses(DMA1,
+                           UART5_RX_DMA_CHANNEL,
+                           (uint32_t)&UART5->RDR,
+                           (uint32_t)RX_USART_Data.u8Data,
+                           LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+    LL_DMA_SetDataLength(DMA1, UART5_RX_DMA_CHANNEL, UART5_DMA_FRAME_SIZE);
+
+    LL_DMA_EnableChannel(DMA1, UART5_RX_DMA_CHANNEL);
+    LL_USART_EnableDMAReq_RX(UART5);
+    LL_USART_EnableIT_IDLE(UART5);
+
+    timeoutStart = GetTick();
+    g4_currentState = G4_STATE_WAIT_RX;
+}
+
+static void UART5_StartTxDma(void)
+{
+    UART5_DisableTxDma();
+    UART5_ClearTxDmaFlags();
+    LL_USART_ClearFlag_TC(UART5);
+
+    LL_DMA_ConfigAddresses(DMA1,
+                           UART5_TX_DMA_CHANNEL,
+                           (uint32_t)TX_USART_Data.u8Data,
+                           (uint32_t)&UART5->TDR,
+                           LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
+    LL_DMA_SetDataLength(DMA1, UART5_TX_DMA_CHANNEL, UART5_DMA_FRAME_SIZE);
+
+    LL_DMA_EnableChannel(DMA1, UART5_TX_DMA_CHANNEL);
+    LL_USART_EnableDMAReq_TX(UART5);
+}
+
+static void UART5_FinishRxDma(void)
+{
+    UART5_DisableRxDma();
+    UART5_ClearRxDmaFlags();
+    LL_USART_DisableIT_IDLE(UART5);
+    g4_rxIndex = UART5_DMA_FRAME_SIZE;
+    g4_currentState = G4_STATE_PROCESS_DATA;
+}
+
+static void UART5_StopDma(void)
+{
+    UART5_DisableRxDma();
+    UART5_DisableTxDma();
+    UART5_ClearRxDmaFlags();
+    UART5_ClearTxDmaFlags();
+    LL_USART_DisableIT_TC(UART5);
+    LL_USART_DisableIT_IDLE(UART5);
+    LL_USART_DisableIT_TXE(UART5);
+    LL_USART_DisableIT_RXNE(UART5);
+}
 
 //void UART_ProcessState(void) {
 //    switch (g4_currentState) {
@@ -538,56 +648,74 @@ volatile G4_State_t g4_currentState = G4_STATE_INIT_RX;
 //}
 
 void UART5_IRQHandler(void){
-    
-    // 1. ???????????????? (RXFNE / RXNE)
-    // ??????? LL_USART_EnableIT_RXFNE ???????????????? Trigger ??????
-    if (LL_USART_IsActiveFlag_RXNE(UART5) && LL_USART_IsEnabledIT_RXNE(UART5)) {
-        
-        // [????????] ?????????????????????????????????????? ???????? Hardware ???????????? RXFNE ??????
-        uint8_t received_byte = LL_USART_ReceiveData8(UART5);
-
-        if (g4_rxIndex < size_u8USARTdata) {
-            RX_USART_Data.u8Data[g4_rxIndex++] = received_byte;        
-        }
-        
-        // ????????? 1024 ???? ?????? Interrupt ?????????? State
-        if (g4_rxIndex >= size_u8USARTdata) {
-            LL_USART_DisableIT_RXNE(UART5); // ??? RXFNE/RXNE
-            g4_currentState = G4_STATE_PROCESS_DATA; 
-        }
-    }
-
-    // 2. ??????????????????? (IDLE)
-    // ??????????????????????????? ???????????????????????????????
     if (LL_USART_IsActiveFlag_IDLE(UART5) && LL_USART_IsEnabledIT_IDLE(UART5)) {
         LL_USART_ClearFlag_IDLE(UART5); 
-    }
-
-    if (LL_USART_IsActiveFlag_TXE(UART5) && LL_USART_IsEnabledIT_TXE(UART5)) {
-        if (g4_txIndex < g4_txLength) {
-            LL_USART_TransmitData8(UART5, TX_USART_Data.u8Data[g4_txIndex++]);
-        } else {
-            LL_USART_DisableIT_TXE(UART5);
-            LL_USART_EnableIT_TC(UART5); 
+        if (g4_currentState == G4_STATE_WAIT_RX) {
+            uint16_t remaining = (uint16_t)LL_DMA_GetDataLength(DMA1, UART5_RX_DMA_CHANNEL);
+            g4_rxIndex = UART5_DMA_FRAME_SIZE - remaining;
+            if (remaining == 0U) {
+                UART5_FinishRxDma();
+            } else if (g4_rxIndex > 0U) {
+                g4_currentState = G4_STATE_TIMEOUT_RESET;
+            }
         }
     }
 
-    // 4. ????????????????????????????????????? (TC)
-    if (LL_USART_IsActiveFlag_TC(UART5) && LL_USART_IsEnabledIT_TC(UART5)) {
-        LL_USART_ClearFlag_TC(UART5); // ????????? TC
+    if (LL_USART_IsActiveFlag_TC(UART5) && LL_USART_IsEnabledIT_TC(UART5) && (g4_currentState == G4_STATE_WAIT_TX)) {
+        LL_USART_ClearFlag_TC(UART5);
         LL_USART_DisableIT_TC(UART5); 
+        g4_currentState = G4_STATE_INIT_RX;
+    }
 
-        if (g4_currentState == G4_STATE_WAIT_TX) {
-            g4_currentState = G4_STATE_INIT_RX; // ??????????????????????
+    if (LL_USART_IsActiveFlag_ORE(UART5)) {
+        LL_USART_ClearFlag_ORE(UART5);
+        g4_currentState = G4_STATE_TIMEOUT_RESET;
+    }
+    if (LL_USART_IsActiveFlag_FE(UART5)) {
+        LL_USART_ClearFlag_FE(UART5);
+        g4_currentState = G4_STATE_TIMEOUT_RESET;
+    }
+    if (LL_USART_IsActiveFlag_NE(UART5)) {
+        LL_USART_ClearFlag_NE(UART5);
+        g4_currentState = G4_STATE_TIMEOUT_RESET;
+    }
+    if (LL_USART_IsActiveFlag_PE(UART5)) {
+        LL_USART_ClearFlag_PE(UART5);
+        g4_currentState = G4_STATE_TIMEOUT_RESET;
+    }
+}
+
+void DMA1_Channel2_IRQHandler(void)
+{
+    if (LL_DMA_IsActiveFlag_TC2(DMA1)) {
+        LL_DMA_ClearFlag_TC2(DMA1);
+        if (g4_currentState == G4_STATE_WAIT_RX) {
+            UART5_FinishRxDma();
         }
     }
-    
-    // 5. ?????? Error Flags 
-    // ?????????????????? LL_USART_EnableIT_ERROR(UART5) ??????????????????????????????????
-    if (LL_USART_IsActiveFlag_ORE(UART5)) { LL_USART_ClearFlag_ORE(UART5); }
-    if (LL_USART_IsActiveFlag_FE(UART5))  { LL_USART_ClearFlag_FE(UART5); }
-    if (LL_USART_IsActiveFlag_NE(UART5))  { LL_USART_ClearFlag_NE(UART5); }
-    if (LL_USART_IsActiveFlag_PE(UART5))  { LL_USART_ClearFlag_PE(UART5); }
+
+    if (LL_DMA_IsActiveFlag_TE2(DMA1)) {
+        LL_DMA_ClearFlag_TE2(DMA1);
+        g4_currentState = G4_STATE_TIMEOUT_RESET;
+    }
+}
+
+void DMA1_Channel3_IRQHandler(void)
+{
+    if (LL_DMA_IsActiveFlag_TC3(DMA1)) {
+        LL_DMA_ClearFlag_TC3(DMA1);
+        if (g4_currentState == G4_STATE_WAIT_TX) {
+            UART5_DisableTxDma();
+            g4_txIndex = UART5_DMA_FRAME_SIZE;
+            timeoutStart = GetTick();
+            LL_USART_EnableIT_TC(UART5);
+        }
+    }
+
+    if (LL_DMA_IsActiveFlag_TE3(DMA1)) {
+        LL_DMA_ClearFlag_TE3(DMA1);
+        g4_currentState = G4_STATE_TIMEOUT_RESET;
+    }
 }
 
 void UART_ProcessState(void) {
@@ -596,13 +724,8 @@ void UART_ProcessState(void) {
         case G4_STATE_INIT_RX:
             g4_rxIndex = 0;
             g4_txIndex = 0;
-            g4_txLength = 0;
             TX_USART_Data = (_USARTData){ 0x00 }; // ??????? Array ?????????????
-            RX_USART_Data = (_USARTData){ 0x00 };
-            
-            LL_USART_EnableIT_RXNE(UART5); 
-            timeoutStart = GetTick();
-            g4_currentState = G4_STATE_WAIT_RX;
+            UART5_StartRxDma();
             break;
 
         case G4_STATE_WAIT_RX:
@@ -631,11 +754,8 @@ void UART_ProcessState(void) {
 
         case G4_STATE_START_TX:
             g4_txIndex = 0; 
-            if (g4_txLength == 0) {
-                g4_txLength = PRI_ACK_DATA_SIZE;
-            }
             timeoutStart = GetTick();
-            LL_USART_EnableIT_TXE(UART5); 
+            UART5_StartTxDma();
             g4_currentState = G4_STATE_WAIT_TX;
             break;
 
@@ -646,12 +766,11 @@ void UART_ProcessState(void) {
             break;
 
         case G4_STATE_TIMEOUT_RESET:
-            LL_USART_DisableIT_TXE(UART5);
-            LL_USART_DisableIT_TC(UART5);
-            LL_USART_DisableIT_RXNE(UART5);
+            UART5_StopDma();
             TX_USART_Data = (_USARTData){ 0x00 };
             RX_USART_Data = (_USARTData){ 0x00 };
-            g4_txLength = 0;
+            g4_rxIndex = 0;
+            g4_txIndex = 0;
             g4_currentState = G4_STATE_INIT_RX;
             break;
 
@@ -659,82 +778,76 @@ void UART_ProcessState(void) {
             g4_currentState = G4_STATE_INIT_RX;
             break;
     }
-}
-
-static void USART_PrepareAck(uint8_t header)
-{
-    TX_USART_Data = (_USARTData){ 0x00 };
-    TX_USART_Data.u8setting1Byte.u8herder = header;
-    g4_txLength = PRI_ACK_DATA_SIZE;
-}
-
-static void USART_StorePayload(void)
-{
-    for(uint16_t i = 0 ; i < 254 ; i++){
-        u32BufferProgram[current_program + i] = RX_USART_Data.u32Data[1 + i];
-    }
-
-    current_program += 254;
-}
-
-static void USART_WritePendingBuffer(void)
-{
-    if (current_program == 0) {
-        return;
-    }
-
-    __disable_irq();
-    B1_Flash_Write((FLASH_START_APP1 + u32offset_FlashAddress), u32BufferProgram, current_program);
-    __enable_irq();
-
-    u32offset_FlashAddress += ((uint32_t)current_program * 4U);
-    current_program = 0;
 }
 
 void PocessCommand(void)
 {
-    CRC_APP_RX_DATA((uint32_t*)RX_USART_Data.u32Data, 255);
-
-    if (My_CRC_SW != Received_CRC) {
-        USART_PrepareAck(STM_ACK_PAUSE_PRI);
-        return;
-    }
-
-    switch (RX_USART_Data.u8setting1Byte.u8herder)
+    // --- ???????????????????????? (???????? CRC ????) ---
+    if (RX_USART_Data.u8setting1Byte.u8herder == PC_CMD_SENDING_PRI) 
     {
-        case PC_CMD_START_PRI: // 0x08
-            __disable_irq();
-            B1_Erase_All_App();
-            __enable_irq();
+        // 1. ????? CRC ???????????????????????????
+        CRC_APP_RX_DATA((uint32_t*)RX_USART_Data.u32Data, 255);
+        
+        // 2. ??????????????????
+        if(My_CRC_SW == Received_CRC) {
+            
+            // ??????????????? Buffer
+            for(uint16_t i = 0 ; i < 254 ; i++){
+                u32BufferProgram[current_program + i] = RX_USART_Data.u32Data[ 1 + i ];
+            }    
+            current_program += 254;
 
-            current_program = 0;
-            u32offset_FlashAddress = 0;
-            USART_PrepareAck(STM_ACK_READY_PRI); // 0x4A
-            break;
-
-        case PC_CMD_SENDING_PRI: // 0x68
-            if ((current_program + 254) <= size_u32BufferProgram) {
-                USART_StorePayload();
-            }
-
-            USART_PrepareAck((current_program < size_u32BufferProgram) ? STM_ACK_READY_PRI : STM_ACK_PAUSE_PRI);
-            break;
-
-        case PC_CMD_WAIT_PRI: // 0x21
-            USART_WritePendingBuffer();
-            USART_PrepareAck(STM_ACK_READY_PRI); // 0x4A
-            break;
-
-        case PC_CMD_FINISHED_PRI: // 0x9A
-            USART_WritePendingBuffer();
-            Version_Edit = RX_USART_Data.u8setting1Byte.u8version;
-            current_program = 0;
-            u32offset_FlashAddress = 0;
-            USART_PrepareAck(STM_ACK_FINISHED_PRI); // 0x56
-            break;
-
-        default:
-            USART_PrepareAck(STM_ACK_PAUSE_PRI);
-            break;
+        } 
+        else {
+            // Bad payload CRC: ask H747 to pause/retry instead of ACK ready.
+            TX_USART_Data.u8setting1Byte.u8herder = STM_ACK_PAUSE_PRI;
+            return;
+        }
     }
+    // --- ???????????????????? (????????????? Payload) ---
+//    else 
+//    {
+        switch (RX_USART_Data.u8setting1Byte.u8herder)
+        {
+            case PC_CMD_START_PRI: // 0x08
+                current_program = 0;
+                u32offset_FlashAddress = 0;
+                TX_USART_Data.u8setting1Byte.u8herder = STM_ACK_READY_PRI; //0x4A
+                break;
+
+            case PC_CMD_WAIT_PRI: // 0x21
+                u32offset_FlashAddress += MaximumAddress_BufferFlash;
+                current_program = 0;
+                TX_USART_Data.u8setting1Byte.u8herder = STM_ACK_READY_PRI; // 0x4A
+                break;
+
+            case PC_CMD_FINISHED_PRI: // 0x9A
+                Version_Edit = RX_USART_Data.u8setting1Byte.u8version;
+                current_program = 0;
+                u32offset_FlashAddress = 0; 
+			
+			    RX_USART_Data = (_USARTData){ 0x00 };
+                TX_USART_Data.u8setting1Byte.u8herder = STM_ACK_FINISHED_PRI; // 0x56
+			
+                break;
+			case PC_CMD_SENDING_PRI: // 0x9A
+                 // ????????????????? ACK ????
+               if (current_program < size_u32BufferProgram) {
+                   TX_USART_Data.u8setting1Byte.u8herder = STM_ACK_READY_PRI; // 0x4A
+//				   g4_currentState = G4_STATE_PROCESS_DATA;
+               } else {
+                   TX_USART_Data.u8setting1Byte.u8herder = STM_ACK_PAUSE_PRI; // 0x6A
+//				   g4_currentState = G4_STATE_PROCESS_DATA;
+               }
+			
+                break;
+
+            default:
+                TX_USART_Data.u8setting1Byte.u8herder = 0x00; // Header ??????????
+                break;
+        }
+//    }
+    
+    // ??????? Buffer ???????????????????????????????????? ??????
+//    RX_USART_Data = (_USARTData){ 0x00 };
 }

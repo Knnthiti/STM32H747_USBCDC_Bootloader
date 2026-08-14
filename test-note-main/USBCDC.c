@@ -3,10 +3,6 @@
 volatile _USBBufferFS USBBufferFS;
 volatile _USBData RX_USBCDC_Data;
 
-volatile uint8_t USBCDC_FrameReady = 0;
-volatile uint8_t USBCDC_FrameCrcOk = 0;
-volatile uint8_t USBCDC_FrameOverflow = 0;
-
 
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
@@ -164,46 +160,38 @@ volatile uint32_t current_rx_index = 0;
 
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
-	if (USBCDC_FrameReady) {
-		USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
-		USBD_CDC_ReceivePacket(&hUsbDeviceFS);
-		return (USBD_OK);
-	}
-	
 	if ((current_rx_index + *Len) <= u8APP_RX_DATA_SIZE){
-        for(uint32_t i = 0 ; i < *Len ; i++){
+        for(uint8_t i = 0 ; i < *Len ; i++){
 			RX_USBCDC_Data.u8RxUSBData[current_rx_index + i] = Buf[i];
 		}
         current_rx_index += *Len;
-    } else {
-		current_rx_index = 0;
-		USBCDC_FrameReady = 1;
-		USBCDC_FrameCrcOk = 0;
-		USBCDC_FrameOverflow = 1;
-		RX_USBCDC_Data = (_USBData){0x00};
-	}
+    }
 	
 	if (current_rx_index >= u8APP_RX_DATA_SIZE){
 	   CRC_APP_RX_DATA();
 		
 	   current_rx_index = 0;
-	   USBCDC_FrameCrcOk = (My_CRC_SW == Received_CRC) ? 1 : 0;
-	   USBCDC_FrameReady = 1;
+		
+		if((My_CRC_SW == Received_CRC) && (RX_USBCDC_Data.u8setting1Byte.u8herder == PC_CMD_SENDING)){
+		for(uint16_t i = 0 ; i < 254 ; i++){
+			u32BufferProgram[current_program + i] = RX_USBCDC_Data.u32RxUSBData[ 1 + i ];
+		}	
+		current_program += 254;
+
+	    }
+		
+//		((My_CRC_SW == Received_CRC) && (RX_USBCDC_Data.u8setting1Byte.u8herder == PC_CMD_START_PRI))
+		if(My_CRC_SW == Received_CRC){
+//			if(RX_USBCDC_Data.u8setting1Byte.u8herder == PC_CMD_START_PRI){
+		       pri_currentState = PRI_STATE_START_TX;
+//			}
+	    }
 
     }
 	
 	USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
 	USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 	return (USBD_OK);
-}
-
-void USBCDC_ReleaseRxFrame(void)
-{
-	current_rx_index = 0;
-	USBCDC_FrameReady = 0;
-	USBCDC_FrameCrcOk = 0;
-	USBCDC_FrameOverflow = 0;
-	RX_USBCDC_Data = (_USBData){0x00};
 }
 
 void CRC_APP_RX_DATA(void){

@@ -76,16 +76,11 @@ extern volatile _USBData TX_USBCDC_Data;
 extern volatile _USBData TX_USART_Data;
 extern volatile _USBData RX_USART_Data;
 
-extern volatile uint8_t USBCDC_FrameReady;
-extern volatile uint8_t USBCDC_FrameCrcOk;
-extern volatile uint8_t USBCDC_FrameOverflow;
-
 /** CDC Interface callback. */
 extern USBD_CDC_ItfTypeDef USBD_Interface_fops_FS;
 
 void GPIO_USB_Init(void);
 uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
-void USBCDC_ReleaseRxFrame(void);
 
 void CRC_APP_RX_DATA(void);
 void CRC_DmaInit(uint32_t u32MemAddr, uint32_t u32memLength);

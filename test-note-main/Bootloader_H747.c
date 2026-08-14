@@ -119,14 +119,10 @@ uint8_t Flash_Write_B1(uint32_t u32FlashAddress, uint32_t *u32Data32B, uint16_t 
 		_32byteBufferFlash.u32Buffer[i] = 0xFFFFFFFF;
 	}
 	
-	uint16_t u16WriteCount = (u16DataCount -1) >> 3;
+	uint16_t u16WriteCount = (u16DataCount -1) >> 5;
 	u16WriteCount++;
 	
 	while(u16WriteCount--){
-		for(uint8_t i = 0; i < 8 ; i++){
-			_32byteBufferFlash.u32Buffer[i] = 0xFFFFFFFF;
-		}
-		
 		//Copy data to Buffer 256 bit
 		if(u16DataCount > 8){
 			for(uint8_t i = 0 ; i < 8 ; i++){
@@ -177,82 +173,215 @@ uint32_t u32offset_FlashAddress = 0;
 
 uint32_t Triger_USB = 0;
 
+void PocessCommand(void)
+{
+    switch (RX_USBCDC_Data.u8setting1Byte.u8herder)
+    {
+        case PC_CMD_START: // 0x07
+			
+		    __disable_irq();
+        	Erase_All_App();
+	        __enable_irq();	
+		
+            current_program = 0;
+            u32offset_FlashAddress = 0;
+            RX_USBCDC_Data = (_USBData){0x00};
+           
+		    if((GetTick() - Triger_USB) > 10){
+			Triger_USB = GetTick();
+				
+            TX_USBCDC_Data.u8setting1Byte.u8herder = STM_ACK_READY; 
+            CDC_Transmit_FS((uint8_t*)TX_USBCDC_Data.u8RxUSBData, u8APP_TX_DATA_SIZE);
+			}
+            break;
+
+        case PC_CMD_SENDING: // 0x67
+            if (current_program < size_u32BufferProgram) {
+				if((GetTick() - Triger_USB) > 10){
+			    Triger_USB = GetTick();
+					
+                TX_USBCDC_Data.u8setting1Byte.u8herder = STM_ACK_READY; // 0x49
+                CDC_Transmit_FS((uint8_t*)TX_USBCDC_Data.u8RxUSBData, u8APP_TX_DATA_SIZE);
+				}
+				
+            } else {
+				if((GetTick() - Triger_USB) > 10){
+			    Triger_USB = GetTick();
+					
+                TX_USBCDC_Data.u8setting1Byte.u8herder = STM_ACK_PAUSE; // 0x69
+                CDC_Transmit_FS((uint8_t*)TX_USBCDC_Data.u8RxUSBData, u8APP_TX_DATA_SIZE);
+				}
+            }
+            break;
+
+        case PC_CMD_WAIT: // 0x20
+			__disable_irq();
+		    Flash_Write_B1((FLASH_START_APP1 + u32offset_FlashAddress) ,u32BufferProgram, size_u32BufferProgram);
+		    __enable_irq();
+		
+            u32offset_FlashAddress += MaximumAddress_BufferFlash;
+            current_program = 0;
+            
+		    if((GetTick() - Triger_USB) > 10){
+			Triger_USB = GetTick();
+			
+            TX_USBCDC_Data.u8setting1Byte.u8herder = STM_ACK_READY; // 0x49
+            CDC_Transmit_FS((uint8_t*)TX_USBCDC_Data.u8RxUSBData, u8APP_TX_DATA_SIZE);
+			}
+            break;
+
+        case PC_CMD_FINISHED: // 0x99
+			__disable_irq();
+		    Flash_Write_B1((FLASH_START_APP1 + u32offset_FlashAddress) ,u32BufferProgram, size_u32BufferProgram);
+		    __enable_irq();
+		
+		    if((GetTick() - Triger_USB) > 10){
+			Triger_USB = GetTick();
+				
+            TX_USBCDC_Data.u8setting1Byte.u8herder = STM_ACK_FINISHED; // 0x55
+            CDC_Transmit_FS((uint8_t*)TX_USBCDC_Data.u8RxUSBData, u8APP_TX_DATA_SIZE);
+				
+			Version_Edit = RX_USBCDC_Data.u8setting1Byte.u8version;
+            current_program = 0;
+            u32offset_FlashAddress = 0; 
+            RX_USBCDC_Data = (_USBData){0x00};
+			}
+            
+            break;
+/*-------------------------------------------------------------------------------------------------------------*/
+		case PC_CMD_START_PRI:
+//		    PocessCommand_PRI();
+//		    break;
+        case PC_CMD_SENDING_PRI:
+//			PocessCommand_PRI();
+//		    break;
+		case PC_CMD_WAIT_PRI:
+//			PocessCommand_PRI();
+//			break;
+        case PC_CMD_FINISHED_PRI:
+			if((GetTick() - Triger_USB) > 10){
+			  Triger_USB = GetTick();
+              PocessCommand_PRI();
+			}
+			break;
+
+        default:
+            
+            break;
+    }
+    
+//    RX_USBCDC_Data.u8setting1Byte.u8herder = 0x00;
+}
+
 PRI_State_t pri_currentState = PRI_STATE_IDLE;
 
 uint16_t pri_txIndex = 0;
 uint16_t pri_rxIndex = 0;
 uint32_t pri_timeoutStart = 0;
 
-volatile _USBData TX_USART_Data;
-volatile _USBData RX_USART_Data;
+volatile _USBData TX_USART_Data __attribute__((aligned(32)));
+volatile _USBData RX_USART_Data __attribute__((aligned(32)));
 
-static volatile uint8_t usb_ack_pending = 0;
-static volatile uint8_t usb_ack_header = 0;
+#define PRI_USART_FRAME_SIZE u8APP_RX_DATA_SIZE
+#define USART6_RX_DMA_STREAM LL_DMA_STREAM_1
+#define USART6_TX_DMA_STREAM LL_DMA_STREAM_2
 
-static uint8_t Is_PRI_Command(uint8_t header)
+#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+#define USART6_DMA_CACHE_LINE_SIZE 32U
+
+static void USART6_GetCacheAlignedRange(const volatile void *address, uint32_t length, uint32_t *start, uint32_t *size)
 {
-    return (header == PC_CMD_START_PRI) ||
-           (header == PC_CMD_SENDING_PRI) ||
-           (header == PC_CMD_WAIT_PRI) ||
-           (header == PC_CMD_FINISHED_PRI);
+    uint32_t raw_start = (uint32_t)address;
+    uint32_t raw_end = raw_start + length;
+
+    *start = raw_start & ~(USART6_DMA_CACHE_LINE_SIZE - 1U);
+    raw_end = (raw_end + USART6_DMA_CACHE_LINE_SIZE - 1U) & ~(USART6_DMA_CACHE_LINE_SIZE - 1U);
+    *size = raw_end - *start;
 }
 
-static uint8_t Is_PRI_Ack(uint8_t header)
+static void USART6_CleanDCache(const volatile void *address, uint32_t length)
 {
-    return (header == STM_ACK_READY_PRI) ||
-           (header == STM_ACK_PAUSE_PRI) ||
-           (header == STM_ACK_FINISHED_PRI);
-}
+    if ((SCB->CCR & SCB_CCR_DC_Msk) != 0U) {
+        uint32_t start;
+        uint32_t size;
 
-static uint8_t CDC_SendAck(uint8_t header)
-{
-    TX_USBCDC_Data = (_USBData){0x00};
-    TX_USBCDC_Data.u8setting1Byte.u8herder = header;
-    return (CDC_Transmit_FS((uint8_t*)TX_USBCDC_Data.u8RxUSBData, u8APP_TX_DATA_SIZE) == USBD_OK);
-}
-
-static void Queue_USBAck(uint8_t header)
-{
-    usb_ack_header = header;
-    usb_ack_pending = 1;
-}
-
-static uint8_t Flush_USBAck(void)
-{
-    if (usb_ack_pending == 0) {
-        return 1;
-    }
-
-    if (CDC_SendAck(usb_ack_header)) {
-        usb_ack_pending = 0;
-        return 1;
-    }
-
-    return 0;
-}
-
-static void Copy_USB_To_USART(void)
-{
-    for(uint16_t i = 0; i < u8APP_RX_DATA_SIZE; i++){
-        TX_USART_Data.u8RxUSBData[i] = RX_USBCDC_Data.u8RxUSBData[i];
+        USART6_GetCacheAlignedRange(address, length, &start, &size);
+        SCB_CleanDCache_by_Addr((uint32_t *)start, (int32_t)size);
     }
 }
 
-static void Copy_USB_To_FlashBuffer(void)
+static void USART6_InvalidateDCache(const volatile void *address, uint32_t length)
 {
-    for(uint16_t i = 0 ; i < 254 ; i++){
-        u32BufferProgram[current_program + i] = RX_USBCDC_Data.u32RxUSBData[1 + i];
+    if ((SCB->CCR & SCB_CCR_DC_Msk) != 0U) {
+        uint32_t start;
+        uint32_t size;
+
+        USART6_GetCacheAlignedRange(address, length, &start, &size);
+        SCB_InvalidateDCache_by_Addr((uint32_t *)start, (int32_t)size);
     }
-    current_program += 254;
 }
 
-static void USART6_DisableAckRx(void)
+static void USART6_CleanInvalidateDCache(const volatile void *address, uint32_t length)
 {
-    LL_USART_DisableIT_RXNE(USART6);
-    LL_USART_DisableIT_IDLE(USART6);
+    if ((SCB->CCR & SCB_CCR_DC_Msk) != 0U) {
+        uint32_t start;
+        uint32_t size;
+
+        USART6_GetCacheAlignedRange(address, length, &start, &size);
+        SCB_CleanInvalidateDCache_by_Addr((uint32_t *)start, (int32_t)size);
+    }
+}
+#else
+static void USART6_CleanDCache(const volatile void *address, uint32_t length)
+{
+    (void)address;
+    (void)length;
 }
 
-static void USART6_FlushRx(void)
+static void USART6_InvalidateDCache(const volatile void *address, uint32_t length)
+{
+    (void)address;
+    (void)length;
+}
+
+static void USART6_CleanInvalidateDCache(const volatile void *address, uint32_t length)
+{
+    (void)address;
+    (void)length;
+}
+#endif
+
+static void USART6_ClearRxDmaFlags(void)
+{
+    LL_DMA_ClearFlag_TC1(DMA1);
+    LL_DMA_ClearFlag_TE1(DMA1);
+    LL_DMA_ClearFlag_DME1(DMA1);
+    LL_DMA_ClearFlag_FE1(DMA1);
+}
+
+static void USART6_ClearTxDmaFlags(void)
+{
+    LL_DMA_ClearFlag_TC2(DMA1);
+    LL_DMA_ClearFlag_TE2(DMA1);
+    LL_DMA_ClearFlag_DME2(DMA1);
+    LL_DMA_ClearFlag_FE2(DMA1);
+}
+
+static void USART6_DisableRxDma(void)
+{
+    LL_USART_DisableDMAReq_RX(USART6);
+    LL_DMA_DisableStream(DMA1, USART6_RX_DMA_STREAM);
+    while (LL_DMA_IsEnabledStream(DMA1, USART6_RX_DMA_STREAM)) {}
+}
+
+static void USART6_DisableTxDma(void)
+{
+    LL_USART_DisableDMAReq_TX(USART6);
+    LL_DMA_DisableStream(DMA1, USART6_TX_DMA_STREAM);
+    while (LL_DMA_IsEnabledStream(DMA1, USART6_TX_DMA_STREAM)) {}
+}
+
+static void USART6_FlushRxFlags(void)
 {
     while (LL_USART_IsActiveFlag_RXNE(USART6)) {
         (void)LL_USART_ReceiveData8(USART6);
@@ -275,122 +404,69 @@ static void USART6_FlushRx(void)
     }
 }
 
-static void USART6_StartAckRx(void)
+static void USART6_StartPriTxDma(void)
 {
+    USART6_DisableTxDma();
+    USART6_ClearTxDmaFlags();
+    LL_USART_ClearFlag_TC(USART6);
+
+    LL_DMA_ConfigAddresses(DMA1,
+                           USART6_TX_DMA_STREAM,
+                           (uint32_t)TX_USART_Data.u8RxUSBData,
+                           (uint32_t)&USART6->TDR,
+                           LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
+    LL_DMA_SetDataLength(DMA1, USART6_TX_DMA_STREAM, PRI_USART_FRAME_SIZE);
+    USART6_CleanDCache(TX_USART_Data.u8RxUSBData, PRI_USART_FRAME_SIZE);
+
+    LL_DMA_EnableStream(DMA1, USART6_TX_DMA_STREAM);
+    LL_USART_EnableDMAReq_TX(USART6);
+}
+
+static void USART6_StartPriRxDma(void)
+{
+    USART6_DisableRxDma();
+    USART6_ClearRxDmaFlags();
+    USART6_FlushRxFlags();
+
     pri_rxIndex = 0;
     RX_USART_Data = (_USBData){0x00};
+    USART6_CleanInvalidateDCache(RX_USART_Data.u8RxUSBData, PRI_USART_FRAME_SIZE);
+
+    LL_DMA_ConfigAddresses(DMA1,
+                           USART6_RX_DMA_STREAM,
+                           (uint32_t)&USART6->RDR,
+                           (uint32_t)RX_USART_Data.u8RxUSBData,
+                           LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+    LL_DMA_SetDataLength(DMA1, USART6_RX_DMA_STREAM, PRI_USART_FRAME_SIZE);
+
+    LL_DMA_EnableStream(DMA1, USART6_RX_DMA_STREAM);
+    LL_USART_EnableDMAReq_RX(USART6);
+    LL_USART_EnableIT_IDLE(USART6);
 
     pri_timeoutStart = GetTick();
     pri_currentState = PRI_STATE_RX_DATA;
-    LL_USART_EnableIT_IDLE(USART6);
-    LL_USART_EnableIT_RXNE(USART6);
 }
 
-static void USART6_FinishAckRx(void)
+static void USART6_FinishPriRxDma(void)
 {
-    USART6_DisableAckRx();
-    pri_currentState = (pri_rxIndex >= PRI_ACK_DATA_SIZE) ? PRI_STATE_PROCESS : PRI_STATE_ERROR;
+    USART6_DisableRxDma();
+    LL_USART_DisableIT_IDLE(USART6);
+    USART6_InvalidateDCache(RX_USART_Data.u8RxUSBData, PRI_USART_FRAME_SIZE);
+    pri_rxIndex = PRI_USART_FRAME_SIZE;
+    pri_currentState = PRI_STATE_PROCESS;
 }
 
-static uint32_t USART6_GetPriTimeout(void)
+static void USART6_AbortPriDma(void)
 {
-    if ((pri_currentState == PRI_STATE_RX_DATA) && (pri_rxIndex > 0)) {
-        return PRI_ACK_INTERBYTE_TIMEOUT_MS;
-    }
-
-    return PRI_TIMEOUT_MS;
-}
-
-void PocessCommand(void)
-{
-    uint8_t header;
-
-    PocessCommand_PRI();
-
-    if (Flush_USBAck() == 0) {
-        return;
-    }
-
-    if (USBCDC_FrameReady == 0) {
-        return;
-    }
-
-    header = RX_USBCDC_Data.u8setting1Byte.u8herder;
-
-    if (USBCDC_FrameCrcOk == 0) {
-        Queue_USBAck(Is_PRI_Command(header) ? STM_ACK_PAUSE_PRI : STM_ACK_PAUSE);
-        USBCDC_ReleaseRxFrame();
-        return;
-    }
-
-    switch (header)
-    {
-        case PC_CMD_START: // 0x07
-            __disable_irq();
-            Erase_All_App();
-            __enable_irq();
-
-            current_program = 0;
-            u32offset_FlashAddress = 0;
-            Queue_USBAck(STM_ACK_READY);
-            USBCDC_ReleaseRxFrame();
-            break;
-
-        case PC_CMD_SENDING: // 0x67
-            if ((current_program + 254) <= size_u32BufferProgram) {
-                Copy_USB_To_FlashBuffer();
-            }
-
-            Queue_USBAck((current_program < size_u32BufferProgram) ? STM_ACK_READY : STM_ACK_PAUSE);
-            USBCDC_ReleaseRxFrame();
-            break;
-
-        case PC_CMD_WAIT: // 0x20
-            if (current_program > 0) {
-                __disable_irq();
-                Flash_Write_B1((FLASH_START_APP1 + u32offset_FlashAddress), u32BufferProgram, current_program);
-                __enable_irq();
-                u32offset_FlashAddress += ((uint32_t)current_program * 4U);
-            }
-
-            current_program = 0;
-            Queue_USBAck(STM_ACK_READY);
-            USBCDC_ReleaseRxFrame();
-            break;
-
-        case PC_CMD_FINISHED: // 0x99
-            if (current_program > 0) {
-                __disable_irq();
-                Flash_Write_B1((FLASH_START_APP1 + u32offset_FlashAddress), u32BufferProgram, current_program);
-                __enable_irq();
-            }
-
-            Version_Edit = RX_USBCDC_Data.u8setting1Byte.u8version;
-            current_program = 0;
-            u32offset_FlashAddress = 0;
-            Queue_USBAck(STM_ACK_FINISHED);
-            USBCDC_ReleaseRxFrame();
-            break;
-
-        case PC_CMD_START_PRI:
-        case PC_CMD_SENDING_PRI:
-        case PC_CMD_WAIT_PRI:
-        case PC_CMD_FINISHED_PRI:
-            if ((pri_currentState == PRI_STATE_IDLE) || (pri_currentState == PRI_STATE_ERROR)) {
-                Copy_USB_To_USART();
-                USBCDC_ReleaseRxFrame();
-                pri_currentState = PRI_STATE_START_TX;
-            } else {
-                Queue_USBAck(STM_ACK_PAUSE_PRI);
-                USBCDC_ReleaseRxFrame();
-            }
-            break;
-
-        default:
-            Queue_USBAck(STM_ACK_PAUSE);
-            USBCDC_ReleaseRxFrame();
-            break;
-    }
+    USART6_DisableRxDma();
+    USART6_DisableTxDma();
+    USART6_ClearRxDmaFlags();
+    USART6_ClearTxDmaFlags();
+    LL_USART_DisableIT_TC(USART6);
+    LL_USART_DisableIT_IDLE(USART6);
+    LL_USART_DisableIT_TXE(USART6);
+    LL_USART_DisableIT_RXNE(USART6);
+    pri_currentState = PRI_STATE_ERROR;
 }
 
 void PocessCommand_PRI(void) {
@@ -403,56 +479,46 @@ void PocessCommand_PRI(void) {
             pri_txIndex = 0;
             pri_rxIndex = 0; 
             pri_timeoutStart = GetTick();
-            RX_USART_Data = (_USBData){0x00};
-            USART6_DisableAckRx();
-            USART6_FlushRx();
+
+
+            for(uint16_t i = 0; i < 1024; i++){
+                TX_USART_Data.u8RxUSBData[i] = (uint8_t)RX_USBCDC_Data.u8RxUSBData[i]; 
+            }
             
             pri_currentState = PRI_STATE_TX_DATA;
-			
-            LL_USART_EnableIT_TXE(USART6);
+            USART6_StartPriTxDma();
             break;
 
         case PRI_STATE_TX_DATA:
         case PRI_STATE_WAIT_TC:
         case PRI_STATE_START_RX: 
         case PRI_STATE_RX_DATA:
-            if ((GetTick() - pri_timeoutStart) > USART6_GetPriTimeout()) {
-                LL_USART_DisableIT_TXE(USART6);
-                LL_USART_DisableIT_TC(USART6);
-                USART6_DisableAckRx();
-                pri_currentState = PRI_STATE_ERROR;
+            if ((GetTick() - pri_timeoutStart) > PRI_TIMEOUT_MS) {
+                USART6_AbortPriDma();
             }
             break;
 
         case PRI_STATE_PROCESS:
-            if (Is_PRI_Ack(RX_USART_Data.u8setting1Byte.u8herder)) {
-                Queue_USBAck(RX_USART_Data.u8setting1Byte.u8herder);
-            } else {
-                Queue_USBAck(STM_ACK_PAUSE_PRI);
-            }
+            TX_USBCDC_Data = (_USBData){0x00};
+            TX_USBCDC_Data.u8setting1Byte.u8herder = RX_USART_Data.u8RxUSBData[0];
+            CDC_Transmit_FS((uint8_t*)TX_USBCDC_Data.u8RxUSBData, u8APP_TX_DATA_SIZE);
 
             if ((TX_USART_Data.u8setting1Byte.u8herder == PC_CMD_FINISHED_PRI) || (TX_USART_Data.u8setting1Byte.u8herder == PC_CMD_START_PRI)) {
                 if (TX_USART_Data.u8setting1Byte.u8herder == PC_CMD_FINISHED_PRI) {
                     Version_Edit = TX_USART_Data.u8setting1Byte.u8version;
                 }
-            }
 
-            TX_USART_Data = (_USBData){ 0 };
-            RX_USART_Data = (_USBData){ 0 };
+                TX_USART_Data = (_USBData){ 0 };
+                RX_USART_Data = (_USBData){ 0 };
+            }
             
             pri_currentState = PRI_STATE_IDLE;
             break;
 
         case PRI_STATE_ERROR:
-            LL_USART_DisableIT_TXE(USART6);
-            LL_USART_DisableIT_TC(USART6);
-            USART6_DisableAckRx();
-            USART6_FlushRx();
-            Queue_USBAck(STM_ACK_PAUSE_PRI);
+            USART6_AbortPriDma();
             pri_txIndex = 0;
             pri_rxIndex = 0;
-            TX_USART_Data = (_USBData){ 0 };
-            RX_USART_Data = (_USBData){ 0 };
             pri_currentState = PRI_STATE_IDLE; 
             break;
             
@@ -464,56 +530,87 @@ void PocessCommand_PRI(void) {
 
 void USART6_IRQHandler(void)
 {
-
-    if (LL_USART_IsActiveFlag_TXE(USART6) && LL_USART_IsEnabledIT_TXE(USART6) && (pri_currentState == PRI_STATE_TX_DATA)) {
-        if (pri_txIndex < u8APP_RX_DATA_SIZE) {
-            LL_USART_TransmitData8(USART6, TX_USART_Data.u8RxUSBData[pri_txIndex++]);
-        } 
-        else {
-            LL_USART_DisableIT_TXE(USART6);
-            USART6_StartAckRx();
-            LL_USART_EnableIT_TC(USART6);
-        }
-    }
-
-    if (LL_USART_IsActiveFlag_TC(USART6) && LL_USART_IsEnabledIT_TC(USART6) && (pri_txIndex == u8APP_RX_DATA_SIZE)) {
+    if (LL_USART_IsActiveFlag_TC(USART6) && LL_USART_IsEnabledIT_TC(USART6) && (pri_currentState == PRI_STATE_WAIT_TC)) {
         LL_USART_ClearFlag_TC(USART6); 
         LL_USART_DisableIT_TC(USART6); 
-    }
-
-    if (LL_USART_IsActiveFlag_RXNE(USART6) && LL_USART_IsEnabledIT_RXNE(USART6) && (pri_currentState == PRI_STATE_RX_DATA)) {
-        while (LL_USART_IsActiveFlag_RXNE(USART6) && (pri_rxIndex < PRI_ACK_DATA_SIZE)) {
-            RX_USART_Data.u8RxUSBData[pri_rxIndex++] = LL_USART_ReceiveData8(USART6);
-        }
-
-        pri_timeoutStart = GetTick();
-        
-        if (pri_rxIndex >= PRI_ACK_DATA_SIZE) {
-            USART6_FinishAckRx();
-        }
+        USART6_StartPriRxDma();
     }
 
     if (LL_USART_IsActiveFlag_IDLE(USART6) && LL_USART_IsEnabledIT_IDLE(USART6)) {
         LL_USART_ClearFlag_IDLE(USART6);
-        if ((pri_currentState == PRI_STATE_RX_DATA) && (pri_rxIndex >= PRI_ACK_DATA_SIZE)) {
-            USART6_FinishAckRx();
+        if (pri_currentState == PRI_STATE_RX_DATA) {
+            uint16_t remaining = (uint16_t)LL_DMA_GetDataLength(DMA1, USART6_RX_DMA_STREAM);
+            pri_rxIndex = PRI_USART_FRAME_SIZE - remaining;
+            if (remaining == 0U) {
+                USART6_FinishPriRxDma();
+            }
         }
     }
 
     if (LL_USART_IsActiveFlag_ORE(USART6)) {
         LL_USART_ClearFlag_ORE(USART6);
-        if (pri_currentState == PRI_STATE_RX_DATA) {
-            USART6_FinishAckRx();
-        }
+        USART6_AbortPriDma();
     }
-
     if (LL_USART_IsActiveFlag_FE(USART6)) {
         LL_USART_ClearFlag_FE(USART6);
+        USART6_AbortPriDma();
     }
     if (LL_USART_IsActiveFlag_NE(USART6)) {
         LL_USART_ClearFlag_NE(USART6);
+        USART6_AbortPriDma();
     }
     if (LL_USART_IsActiveFlag_PE(USART6)) {
         LL_USART_ClearFlag_PE(USART6);
+        USART6_AbortPriDma();
+    }
+}
+
+void DMA1_Stream1_IRQHandler(void)
+{
+    if (LL_DMA_IsActiveFlag_TC1(DMA1)) {
+        LL_DMA_ClearFlag_TC1(DMA1);
+        if (pri_currentState == PRI_STATE_RX_DATA) {
+            USART6_FinishPriRxDma();
+        }
+    }
+
+    if (LL_DMA_IsActiveFlag_TE1(DMA1)) {
+        LL_DMA_ClearFlag_TE1(DMA1);
+        USART6_AbortPriDma();
+    }
+    if (LL_DMA_IsActiveFlag_DME1(DMA1)) {
+        LL_DMA_ClearFlag_DME1(DMA1);
+        USART6_AbortPriDma();
+    }
+    if (LL_DMA_IsActiveFlag_FE1(DMA1)) {
+        LL_DMA_ClearFlag_FE1(DMA1);
+        USART6_AbortPriDma();
+    }
+}
+
+void DMA1_Stream2_IRQHandler(void)
+{
+    if (LL_DMA_IsActiveFlag_TC2(DMA1)) {
+        LL_DMA_ClearFlag_TC2(DMA1);
+        if (pri_currentState == PRI_STATE_TX_DATA) {
+            USART6_DisableTxDma();
+            pri_txIndex = PRI_USART_FRAME_SIZE;
+            pri_timeoutStart = GetTick();
+            pri_currentState = PRI_STATE_WAIT_TC;
+            LL_USART_EnableIT_TC(USART6);
+        }
+    }
+
+    if (LL_DMA_IsActiveFlag_TE2(DMA1)) {
+        LL_DMA_ClearFlag_TE2(DMA1);
+        USART6_AbortPriDma();
+    }
+    if (LL_DMA_IsActiveFlag_DME2(DMA1)) {
+        LL_DMA_ClearFlag_DME2(DMA1);
+        USART6_AbortPriDma();
+    }
+    if (LL_DMA_IsActiveFlag_FE2(DMA1)) {
+        LL_DMA_ClearFlag_FE2(DMA1);
+        USART6_AbortPriDma();
     }
 }
