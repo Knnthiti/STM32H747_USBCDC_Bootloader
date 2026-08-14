@@ -197,6 +197,13 @@ static uint8_t Is_PRI_Command(uint8_t header)
            (header == PC_CMD_FINISHED_PRI);
 }
 
+static uint8_t Is_PRI_Ack(uint8_t header)
+{
+    return (header == STM_ACK_READY_PRI) ||
+           (header == STM_ACK_PAUSE_PRI) ||
+           (header == STM_ACK_FINISHED_PRI);
+}
+
 static uint8_t CDC_SendAck(uint8_t header)
 {
     TX_USBCDC_Data = (_USBData){0x00};
@@ -237,6 +244,61 @@ static void Copy_USB_To_FlashBuffer(void)
         u32BufferProgram[current_program + i] = RX_USBCDC_Data.u32RxUSBData[1 + i];
     }
     current_program += 254;
+}
+
+static void USART6_DisableAckRx(void)
+{
+    LL_USART_DisableIT_RXNE(USART6);
+    LL_USART_DisableIT_IDLE(USART6);
+}
+
+static void USART6_FlushRx(void)
+{
+    while (LL_USART_IsActiveFlag_RXNE(USART6)) {
+        (void)LL_USART_ReceiveData8(USART6);
+    }
+
+    if (LL_USART_IsActiveFlag_IDLE(USART6)) {
+        LL_USART_ClearFlag_IDLE(USART6);
+    }
+    if (LL_USART_IsActiveFlag_ORE(USART6)) {
+        LL_USART_ClearFlag_ORE(USART6);
+    }
+    if (LL_USART_IsActiveFlag_FE(USART6)) {
+        LL_USART_ClearFlag_FE(USART6);
+    }
+    if (LL_USART_IsActiveFlag_NE(USART6)) {
+        LL_USART_ClearFlag_NE(USART6);
+    }
+    if (LL_USART_IsActiveFlag_PE(USART6)) {
+        LL_USART_ClearFlag_PE(USART6);
+    }
+}
+
+static void USART6_StartAckRx(void)
+{
+    pri_rxIndex = 0;
+    RX_USART_Data = (_USBData){0x00};
+
+    pri_timeoutStart = GetTick();
+    pri_currentState = PRI_STATE_RX_DATA;
+    LL_USART_EnableIT_IDLE(USART6);
+    LL_USART_EnableIT_RXNE(USART6);
+}
+
+static void USART6_FinishAckRx(void)
+{
+    USART6_DisableAckRx();
+    pri_currentState = (pri_rxIndex >= PRI_ACK_DATA_SIZE) ? PRI_STATE_PROCESS : PRI_STATE_ERROR;
+}
+
+static uint32_t USART6_GetPriTimeout(void)
+{
+    if ((pri_currentState == PRI_STATE_RX_DATA) && (pri_rxIndex > 0)) {
+        return PRI_ACK_INTERBYTE_TIMEOUT_MS;
+    }
+
+    return PRI_TIMEOUT_MS;
 }
 
 void PocessCommand(void)
@@ -342,6 +404,8 @@ void PocessCommand_PRI(void) {
             pri_rxIndex = 0; 
             pri_timeoutStart = GetTick();
             RX_USART_Data = (_USBData){0x00};
+            USART6_DisableAckRx();
+            USART6_FlushRx();
             
             pri_currentState = PRI_STATE_TX_DATA;
 			
@@ -352,19 +416,19 @@ void PocessCommand_PRI(void) {
         case PRI_STATE_WAIT_TC:
         case PRI_STATE_START_RX: 
         case PRI_STATE_RX_DATA:
-            if ((GetTick() - pri_timeoutStart) > PRI_TIMEOUT_MS) {
+            if ((GetTick() - pri_timeoutStart) > USART6_GetPriTimeout()) {
                 LL_USART_DisableIT_TXE(USART6);
                 LL_USART_DisableIT_TC(USART6);
-                LL_USART_DisableIT_RXNE(USART6);
+                USART6_DisableAckRx();
                 pri_currentState = PRI_STATE_ERROR;
             }
             break;
 
         case PRI_STATE_PROCESS:
-            if (RX_USART_Data.u8setting1Byte.u8herder == 0x00) {
-                Queue_USBAck(STM_ACK_PAUSE_PRI);
-            } else {
+            if (Is_PRI_Ack(RX_USART_Data.u8setting1Byte.u8herder)) {
                 Queue_USBAck(RX_USART_Data.u8setting1Byte.u8herder);
+            } else {
+                Queue_USBAck(STM_ACK_PAUSE_PRI);
             }
 
             if ((TX_USART_Data.u8setting1Byte.u8herder == PC_CMD_FINISHED_PRI) || (TX_USART_Data.u8setting1Byte.u8herder == PC_CMD_START_PRI)) {
@@ -382,7 +446,8 @@ void PocessCommand_PRI(void) {
         case PRI_STATE_ERROR:
             LL_USART_DisableIT_TXE(USART6);
             LL_USART_DisableIT_TC(USART6);
-            LL_USART_DisableIT_RXNE(USART6);
+            USART6_DisableAckRx();
+            USART6_FlushRx();
             Queue_USBAck(STM_ACK_PAUSE_PRI);
             pri_txIndex = 0;
             pri_rxIndex = 0;
@@ -401,37 +466,54 @@ void USART6_IRQHandler(void)
 {
 
     if (LL_USART_IsActiveFlag_TXE(USART6) && LL_USART_IsEnabledIT_TXE(USART6) && (pri_currentState == PRI_STATE_TX_DATA)) {
-        if (pri_txIndex < 1024) {
+        if (pri_txIndex < u8APP_RX_DATA_SIZE) {
             LL_USART_TransmitData8(USART6, TX_USART_Data.u8RxUSBData[pri_txIndex++]);
         } 
         else {
             LL_USART_DisableIT_TXE(USART6);
+            USART6_StartAckRx();
             LL_USART_EnableIT_TC(USART6);
-            pri_currentState = PRI_STATE_WAIT_TC;
         }
     }
 
-    if (LL_USART_IsActiveFlag_TC(USART6) && LL_USART_IsEnabledIT_TC(USART6) && (pri_txIndex == 1024)) {
+    if (LL_USART_IsActiveFlag_TC(USART6) && LL_USART_IsEnabledIT_TC(USART6) && (pri_txIndex == u8APP_RX_DATA_SIZE)) {
         LL_USART_ClearFlag_TC(USART6); 
         LL_USART_DisableIT_TC(USART6); 
-        
-        pri_rxIndex = 0;
-        pri_currentState = PRI_STATE_RX_DATA;
-        LL_USART_EnableIT_RXNE(USART6); 
     }
 
     if (LL_USART_IsActiveFlag_RXNE(USART6) && LL_USART_IsEnabledIT_RXNE(USART6) && (pri_currentState == PRI_STATE_RX_DATA)) {
-        if (pri_rxIndex < 1024) {
+        while (LL_USART_IsActiveFlag_RXNE(USART6) && (pri_rxIndex < PRI_ACK_DATA_SIZE)) {
             RX_USART_Data.u8RxUSBData[pri_rxIndex++] = LL_USART_ReceiveData8(USART6);
         }
+
+        pri_timeoutStart = GetTick();
         
-        if (pri_rxIndex >= 1024) {
-            LL_USART_DisableIT_RXNE(USART6);
-            pri_currentState = PRI_STATE_PROCESS;
+        if (pri_rxIndex >= PRI_ACK_DATA_SIZE) {
+            USART6_FinishAckRx();
+        }
+    }
+
+    if (LL_USART_IsActiveFlag_IDLE(USART6) && LL_USART_IsEnabledIT_IDLE(USART6)) {
+        LL_USART_ClearFlag_IDLE(USART6);
+        if ((pri_currentState == PRI_STATE_RX_DATA) && (pri_rxIndex >= PRI_ACK_DATA_SIZE)) {
+            USART6_FinishAckRx();
         }
     }
 
     if (LL_USART_IsActiveFlag_ORE(USART6)) {
         LL_USART_ClearFlag_ORE(USART6);
+        if (pri_currentState == PRI_STATE_RX_DATA) {
+            USART6_FinishAckRx();
+        }
+    }
+
+    if (LL_USART_IsActiveFlag_FE(USART6)) {
+        LL_USART_ClearFlag_FE(USART6);
+    }
+    if (LL_USART_IsActiveFlag_NE(USART6)) {
+        LL_USART_ClearFlag_NE(USART6);
+    }
+    if (LL_USART_IsActiveFlag_PE(USART6)) {
+        LL_USART_ClearFlag_PE(USART6);
     }
 }

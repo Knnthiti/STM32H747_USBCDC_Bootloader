@@ -87,6 +87,8 @@ extern uint16_t pri_rxIndex;
 extern uint32_t pri_timeoutStart;
 
 #define PRI_TIMEOUT_MS 30000
+#define PRI_ACK_DATA_SIZE 1024
+#define PRI_ACK_INTERBYTE_TIMEOUT_MS 100
 
 void PocessCommand_PRI(void);
 #endif   

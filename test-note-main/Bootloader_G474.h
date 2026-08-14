@@ -105,11 +105,13 @@ extern volatile uint16_t current_program;
 extern uint32_t timeoutStart;
 extern volatile uint16_t g4_rxIndex;
 extern volatile uint16_t g4_txIndex;
+extern volatile uint16_t g4_txLength;
 
 extern volatile _USARTData TX_USART_Data;
 extern volatile _USARTData RX_USART_Data;
 
 #define USART_TIMEOUT_MS 10000
+#define PRI_ACK_DATA_SIZE 1024
 
 // State Machine Enum
 typedef enum {

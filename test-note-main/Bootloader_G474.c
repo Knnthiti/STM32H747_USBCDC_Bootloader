@@ -277,6 +277,7 @@ volatile uint16_t current_program;
 uint32_t timeoutStart = 0;
 volatile uint16_t g4_rxIndex = 0;
 volatile uint16_t g4_txIndex = 0;
+volatile uint16_t g4_txLength = 0;
 volatile G4_State_t g4_currentState = G4_STATE_INIT_RX;
 
 //void UART_ProcessState(void) {
@@ -562,15 +563,11 @@ void UART5_IRQHandler(void){
         LL_USART_ClearFlag_IDLE(UART5); 
     }
 
-    // 3. ??????????????? (TXFNF / TXE)
-    // ??????? LL_USART_EnableIT_TXFNF ???????????????? Trigger ?????????????????????? FIFO
     if (LL_USART_IsActiveFlag_TXE(UART5) && LL_USART_IsEnabledIT_TXE(UART5)) {
-        if (g4_txIndex < size_u8USARTdata) {
-            // ???????????? TDR (?????????????????????????? TXFNF ????????????)
+        if (g4_txIndex < g4_txLength) {
             LL_USART_TransmitData8(UART5, TX_USART_Data.u8Data[g4_txIndex++]);
         } else {
-            // ??????????????? ?????????????? TXFNF ??????? TC ????????????????????????????????????????
-            LL_USART_DisableIT_TXE(UART5); // ??? TXFNF/TXE
+            LL_USART_DisableIT_TXE(UART5);
             LL_USART_EnableIT_TC(UART5); 
         }
     }
@@ -599,6 +596,7 @@ void UART_ProcessState(void) {
         case G4_STATE_INIT_RX:
             g4_rxIndex = 0;
             g4_txIndex = 0;
+            g4_txLength = 0;
             TX_USART_Data = (_USARTData){ 0x00 }; // ??????? Array ?????????????
             RX_USART_Data = (_USARTData){ 0x00 };
             
@@ -633,6 +631,9 @@ void UART_ProcessState(void) {
 
         case G4_STATE_START_TX:
             g4_txIndex = 0; 
+            if (g4_txLength == 0) {
+                g4_txLength = PRI_ACK_DATA_SIZE;
+            }
             timeoutStart = GetTick();
             LL_USART_EnableIT_TXE(UART5); 
             g4_currentState = G4_STATE_WAIT_TX;
@@ -650,6 +651,7 @@ void UART_ProcessState(void) {
             LL_USART_DisableIT_RXNE(UART5);
             TX_USART_Data = (_USARTData){ 0x00 };
             RX_USART_Data = (_USARTData){ 0x00 };
+            g4_txLength = 0;
             g4_currentState = G4_STATE_INIT_RX;
             break;
 
@@ -663,6 +665,7 @@ static void USART_PrepareAck(uint8_t header)
 {
     TX_USART_Data = (_USARTData){ 0x00 };
     TX_USART_Data.u8setting1Byte.u8herder = header;
+    g4_txLength = PRI_ACK_DATA_SIZE;
 }
 
 static void USART_StorePayload(void)

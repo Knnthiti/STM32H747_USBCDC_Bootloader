@@ -44,9 +44,10 @@ void USART6_Init(void){
   LL_USART_SetRXFIFOThreshold(USART6, LL_USART_FIFOTHRESHOLD_1_8);
   LL_USART_EnableFIFO(USART6);
   
-  LL_USART_DisableOverrunDetect(USART6);
+  LL_USART_EnableOverrunDetect(USART6);
   LL_USART_DisableDMADeactOnRxErr(USART6);
   LL_USART_ConfigAsyncMode(USART6);
+  LL_USART_EnableIT_ERROR(USART6);
 
   NVIC_SetPriority(USART6_IRQn, 0);
   NVIC_EnableIRQ(USART6_IRQn);
