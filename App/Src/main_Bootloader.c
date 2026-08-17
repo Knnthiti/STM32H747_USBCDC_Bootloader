@@ -3,6 +3,13 @@
 // Global variable to track 1-millisecond time intervals
 volatile uint32_t Part_time = 0;
 
+/******************************************************************************
+  * @FunctionName : main()
+  * @Description  : This function initializes the bootloader and handles USB commands.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 int main()
 {
 

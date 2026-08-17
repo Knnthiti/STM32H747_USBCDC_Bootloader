@@ -1,5 +1,12 @@
 #include "main_App.h"
 
+/******************************************************************************
+  * @FunctionName : main()
+  * @Description  : This function initializes the application and toggles GPIO outputs.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 int main(){
  SystemClock_Init(); // Configure and initialize the system clock
 
