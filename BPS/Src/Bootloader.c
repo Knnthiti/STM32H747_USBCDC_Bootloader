@@ -37,6 +37,13 @@ volatile uint16_t current_program = 0;
 //	vJumpToApp();
 //}
 
+/******************************************************************************
+  * @FunctionName : bootJumpToApp1()
+  * @Description  : This function jumps from bootloader to application 1.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void bootJumpToApp1(){ 
 	
 	typedef int (*pFunction)(void);
@@ -50,10 +57,24 @@ void bootJumpToApp1(){
 	vJumpToApp();
 }
 
+/******************************************************************************
+  * @FunctionName : IsFlash_WaitForOperation()
+  * @Description  : This function checks whether Flash operation is still busy.
+  * @note         :
+  * @Param        : None.
+  * @Return       : 1 when Flash is busy, otherwise 0.
+  ******************************************************************************/
 uint8_t IsFlash_WaitForOperation(void){
 	return((FLASH->SR1 & FLASH_SR_BSY) ? 1 : 0);
 }
 
+/******************************************************************************
+  * @FunctionName : Clear_errorflags()
+  * @Description  : This function clears Flash error and status flags.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void Clear_errorflags(void){
 	FLASH->CCR1 = (FLASH_CCR_CLR_EOP | FLASH_CCR_CLR_WRPERR | FLASH_CCR_CLR_PGSERR 
 	               | FLASH_CCR_CLR_STRBERR | FLASH_CCR_CLR_INCERR | FLASH_CCR_CLR_OPERR 
@@ -61,6 +82,13 @@ void Clear_errorflags(void){
 	               | FLASH_CCR_CLR_DBECCERR | FLASH_CCR_CLR_CRCEND | FLASH_CCR_CLR_CRCRDERR);
 }
 
+/******************************************************************************
+  * @FunctionName : FLASH_access_control()
+  * @Description  : This function configures Flash access latency and locks Flash.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void FLASH_access_control(void){
 	FLASH->ACR = FLASH_ACR_LATENCY_5WS;
 	FLASH->ACR |= FLASH_ACR_WRHIGHFREQ;
@@ -69,19 +97,47 @@ void FLASH_access_control(void){
 	Flash_lock();
 }
 
+/******************************************************************************
+  * @FunctionName : Flash_Unlock()
+  * @Description  : This function unlocks Flash bank 1 control register.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void Flash_Unlock(void){
   FLASH->KEYR1 = 0x45670123;
   FLASH->KEYR1 = 0xCDEF89AB;
 }
 
+/******************************************************************************
+  * @FunctionName : Flash_lock()
+  * @Description  : This function locks Flash bank 1 control register.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void Flash_lock(void){
   FLASH->CR1 |= FLASH_CR_LOCK;
 }
 
+/******************************************************************************
+  * @FunctionName : IsFlash_lock()
+  * @Description  : This function checks whether Flash bank 1 is locked.
+  * @note         :
+  * @Param        : None.
+  * @Return       : 1 when Flash is locked, otherwise 0.
+  ******************************************************************************/
 uint8_t IsFlash_lock(void){
 	return(FLASH->CR1 & FLASH_CR_LOCK) ? 1 : 0;
 }
 
+/******************************************************************************
+  * @FunctionName : Flash_erase_Sector()
+  * @Description  : This function erases one Flash sector in bank 1.
+  * @note         :
+  * @Param        : u8Sector: Flash sector number to erase.
+  * @Return       : 0 when erase is started and completed, otherwise 1.
+  ******************************************************************************/
 uint8_t Flash_erase_Sector(uint8_t u8Sector){
 	while(IsFlash_WaitForOperation()) {
 		return 1;
@@ -119,6 +175,13 @@ uint8_t Flash_erase_Sector(uint8_t u8Sector){
 	return 0;
 }
 
+/******************************************************************************
+  * @FunctionName : Erase_All_App()
+  * @Description  : This function erases all application Flash sectors.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void Erase_All_App(void){
 	for(uint8_t i = 0x01 ; i < 0x08 ; i++){
 		Flash_erase_Sector(i);
@@ -127,6 +190,15 @@ void Erase_All_App(void){
 
 BufferFlash _32byteBufferFlash;
 
+/******************************************************************************
+  * @FunctionName : Flash_Write_B1()
+  * @Description  : This function writes 32-bit data words to Flash bank 1.
+  * @note         :
+  * @Param        : u32FlashAddress: Destination Flash address.
+  * @Param        : u32Data32B: Pointer to source data buffer.
+  * @Param        : u16DataCount: Number of 32-bit words to write.
+  * @Return       : 0 when write is completed, otherwise 1.
+  ******************************************************************************/
 uint8_t Flash_Write_B1(uint32_t u32FlashAddress, uint32_t *u32Data32B, uint16_t u16DataCount){
 	while(IsFlash_WaitForOperation()) {
 		return 1;
@@ -203,6 +275,13 @@ volatile _USBData TX_USBCDC_Data;
 
 uint32_t u32offset_FlashAddress = 0;
 
+/******************************************************************************
+  * @FunctionName : PocessCommand()
+  * @Description  : This function processes USB CDC bootloader commands.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void PocessCommand(void)
 {
     switch (RX_USBCDC_Data.u8setting1Byte.u8herder)

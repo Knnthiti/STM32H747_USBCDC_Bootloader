@@ -75,11 +75,52 @@ extern volatile _USBData RX_USBCDC_Data;
 /** CDC Interface callback. */
 extern USBD_CDC_ItfTypeDef USBD_Interface_fops_FS;
 
+/******************************************************************************
+  * @FunctionName : GPIO_USB_Init()
+  * @Description  : This function configures GPIO pins used by USB CDC.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void GPIO_USB_Init(void);
+
+/******************************************************************************
+  * @FunctionName : CDC_Transmit_FS()
+  * @Description  : This function transmits data through USB CDC.
+  * @note         :
+  * @Param        : Buf: Pointer to transmit data buffer.
+  * @Param        : Len: Number of bytes to transmit.
+  * @Return       : USBD_OK when transmit starts, otherwise USBD_BUSY.
+  ******************************************************************************/
 uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 
+/******************************************************************************
+  * @FunctionName : CRC_APP_RX_DATA()
+  * @Description  : This function calculates and reads CRC values for received app data.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void CRC_APP_RX_DATA(void);
+
+/******************************************************************************
+  * @FunctionName : CRC_DmaInit()
+  * @Description  : This function initializes CRC hardware and DMA transfer settings.
+  * @note         :
+  * @Param        : u32MemAddr: Source memory address for CRC calculation.
+  * @Param        : u32memLength: Number of 32-bit words for DMA transfer.
+  * @Return       : None.
+  ******************************************************************************/
 void CRC_DmaInit(uint32_t u32MemAddr, uint32_t u32memLength);
+
+/******************************************************************************
+  * @FunctionName : software_crc32()
+  * @Description  : This function calculates CRC32 in software.
+  * @note         :
+  * @Param        : data: Pointer to source data buffer.
+  * @Param        : length: Number of 32-bit words to calculate.
+  * @Return       : Calculated CRC32 value.
+  ******************************************************************************/
 uint32_t software_crc32(uint32_t *data, uint16_t length);
 
 #endif

@@ -1,6 +1,13 @@
 #include "Clock_system.h"
 
 
+/******************************************************************************
+  * @FunctionName : SystemClock_Init()
+  * @Description  : This function configures the system clock and CRS settings.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void SystemClock_Init(void)
 {
   LL_FLASH_SetLatency(LL_FLASH_LATENCY_2);
@@ -76,6 +83,14 @@ void SystemClock_Init(void)
   LL_CRS_SetHSI48SmoothTrimming(32);
 }
 
+/******************************************************************************
+  * @FunctionName : SystemTickConfig()
+  * @Description  : This function configures SysTick frequency and interrupt state.
+  * @note         :
+  * @Param        : u16Frequency: SysTick tick frequency.
+  * @Param        : eSysTickSate: SysTick interrupt enable state.
+  * @Return       : None.
+  ******************************************************************************/
 void SystemTickConfig(uint32_t u16Frequency,FunctionalState eSysTickSate){
 	LL_InitTick(SystemCoreClock,u16Frequency);
 	if(eSysTickSate == ENABLE)
@@ -88,25 +103,60 @@ void SystemTickConfig(uint32_t u16Frequency,FunctionalState eSysTickSate){
 
 volatile uint32_t TIME_1ms = 0;
 
+/******************************************************************************
+  * @FunctionName : HAL_IncTick()
+  * @Description  : This function increments the millisecond tick counter.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void HAL_IncTick(void)
 {
 	TIME_1ms += 1;
 }
 
+/******************************************************************************
+  * @FunctionName : HAL_GetTick()
+  * @Description  : This function returns the current millisecond tick value.
+  * @note         :
+  * @Param        : None.
+  * @Return       : Current tick value in milliseconds.
+  ******************************************************************************/
 uint32_t HAL_GetTick(void)
 {
 	return TIME_1ms;
 }
 
+/******************************************************************************
+  * @FunctionName : SysTick_Handler()
+  * @Description  : This function handles the SysTick interrupt.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void SysTick_Handler(void)
 {
 	HAL_IncTick();
 }
 
+/******************************************************************************
+  * @FunctionName : GetTick()
+  * @Description  : This function returns the current millisecond tick value.
+  * @note         :
+  * @Param        : None.
+  * @Return       : Current tick value in milliseconds.
+  ******************************************************************************/
 uint32_t GetTick(void) {
     return TIME_1ms;
 }
 
+/******************************************************************************
+  * @FunctionName : GPIO_Init()
+  * @Description  : This function configures GPIO pins used by the application.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void GPIO_Init(void)
 {
   LL_GPIO_InitTypeDef GPIO_InitStruct = {0};

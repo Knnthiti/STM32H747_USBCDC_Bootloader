@@ -22,6 +22,13 @@ USBD_CDC_ItfTypeDef USBD_Interface_fops_FS =
 };
 
 
+/******************************************************************************
+  * @FunctionName : GPIO_USB_Init()
+  * @Description  : This function configures GPIO pins used by USB CDC.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void GPIO_USB_Init(void)
 {
   LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -42,6 +49,13 @@ void GPIO_USB_Init(void)
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
+/******************************************************************************
+  * @FunctionName : CDC_Init_FS()
+  * @Description  : This function initializes the USB CDC interface buffers.
+  * @note         :
+  * @Param        : None.
+  * @Return       : USBD_OK when initialization is completed.
+  ******************************************************************************/
 static int8_t CDC_Init_FS(void)
 {
   /* USER CODE BEGIN 3 */
@@ -52,6 +66,13 @@ static int8_t CDC_Init_FS(void)
   /* USER CODE END 3 */
 }
 
+/******************************************************************************
+  * @FunctionName : CDC_DeInit_FS()
+  * @Description  : This function deinitializes the USB CDC interface.
+  * @note         :
+  * @Param        : None.
+  * @Return       : USBD_OK when deinitialization is completed.
+  ******************************************************************************/
 static int8_t CDC_DeInit_FS(void)
 {
   /* USER CODE BEGIN 4 */
@@ -59,6 +80,15 @@ static int8_t CDC_DeInit_FS(void)
   /* USER CODE END 4 */
 }
 
+/******************************************************************************
+  * @FunctionName : CDC_Control_FS()
+  * @Description  : This function handles USB CDC class control commands.
+  * @note         :
+  * @Param        : cmd: CDC control command.
+  * @Param        : pbuf: Pointer to command data buffer.
+  * @Param        : length: Length of command data.
+  * @Return       : USBD_OK when command handling is completed.
+  ******************************************************************************/
 static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 {
   /* USER CODE BEGIN 5 */
@@ -125,6 +155,15 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
   /* USER CODE END 5 */
 }
 
+/******************************************************************************
+  * @FunctionName : CDC_TransmitCplt_FS()
+  * @Description  : This function handles USB CDC transmit completion callback.
+  * @note         :
+  * @Param        : Buf: Pointer to transmitted data buffer.
+  * @Param        : Len: Pointer to transmitted data length.
+  * @Param        : epnum: Endpoint number.
+  * @Return       : USBD_OK when callback handling is completed.
+  ******************************************************************************/
 static int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
 {
   uint8_t result = USBD_OK;
@@ -138,6 +177,14 @@ static int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
 
 
 
+/******************************************************************************
+  * @FunctionName : CDC_Transmit_FS()
+  * @Description  : This function transmits data through USB CDC.
+  * @note         :
+  * @Param        : Buf: Pointer to transmit data buffer.
+  * @Param        : Len: Number of bytes to transmit.
+  * @Return       : USBD_OK when transmit starts, otherwise USBD_BUSY.
+  ******************************************************************************/
 uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 {
   uint8_t result = USBD_OK;
@@ -158,6 +205,14 @@ volatile uint32_t Received_CRC = 67;
 
 volatile uint32_t current_rx_index = 0;
 
+/******************************************************************************
+  * @FunctionName : CDC_Receive_FS()
+  * @Description  : This function receives USB CDC data and stores bootloader packets.
+  * @note         :
+  * @Param        : Buf: Pointer to received data buffer.
+  * @Param        : Len: Pointer to received data length.
+  * @Return       : USBD_OK when receive handling is completed.
+  ******************************************************************************/
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
 	if ((current_rx_index + *Len) <= u8APP_RX_DATA_SIZE){
@@ -186,6 +241,13 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 	return (USBD_OK);
 }
 
+/******************************************************************************
+  * @FunctionName : CRC_APP_RX_DATA()
+  * @Description  : This function calculates and reads CRC values for received app data.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void CRC_APP_RX_DATA(void){
 	LL_CRC_ResetCRCCalculationUnit(CRC);
 	LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_0);
@@ -204,6 +266,14 @@ void CRC_APP_RX_DATA(void){
 	Received_CRC = RX_USBCDC_Data.u32RxUSBData[255];
 }
 
+/******************************************************************************
+  * @FunctionName : CRC_DmaInit()
+  * @Description  : This function initializes CRC hardware and DMA transfer settings.
+  * @note         :
+  * @Param        : u32MemAddr: Source memory address for CRC calculation.
+  * @Param        : u32memLength: Number of 32-bit words for DMA transfer.
+  * @Return       : None.
+  ******************************************************************************/
 void CRC_DmaInit(uint32_t u32MemAddr, uint32_t u32memLength) {
 
     /* 1. Initialize the CRC unit */ 
@@ -248,6 +318,14 @@ void CRC_DmaInit(uint32_t u32MemAddr, uint32_t u32memLength) {
 }
 
 
+/******************************************************************************
+  * @FunctionName : software_crc32()
+  * @Description  : This function calculates CRC32 in software.
+  * @note         :
+  * @Param        : data: Pointer to source data buffer.
+  * @Param        : length: Number of 32-bit words to calculate.
+  * @Return       : Calculated CRC32 value.
+  ******************************************************************************/
 uint32_t software_crc32(uint32_t *data, uint16_t length) {
     uint32_t crc = 0xFFFFFFFF;
 
@@ -266,6 +344,13 @@ uint32_t software_crc32(uint32_t *data, uint16_t length) {
     return crc;
 }
 
+/******************************************************************************
+  * @FunctionName : HAL_PWR_PVDCallback()
+  * @Description  : This function handles the PVD callback.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void HAL_PWR_PVDCallback(void)
 {
 
@@ -273,6 +358,13 @@ void HAL_PWR_PVDCallback(void)
 
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
+/******************************************************************************
+  * @FunctionName : OTG_FS_IRQHandler()
+  * @Description  : This function handles the USB OTG FS interrupt.
+  * @note         :
+  * @Param        : None.
+  * @Return       : None.
+  ******************************************************************************/
 void OTG_FS_IRQHandler(void)
 {
   HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
