@@ -66,7 +66,7 @@ The Keil scatter files also define the same memory regions:
 | `BPS/Src/Bootloader.c` | Handles application jump, Flash unlock/lock, sector erase, Flash write, and bootloader command processing. |
 | `BPS/Src/USB_CDC.c` | Handles USB CDC callbacks, packet receive/transmit, CRC checking, and firmware buffer loading. |
 | `BPS/Src/Clock_system.c` | Configures system clock, SysTick, and GPIO. |
-| `Flash_program/Flash_program_V1.py` | PC-side Python script that sends `App.bin` to the bootloader over the USB CDC serial port. |
+| `Flash_program/Flash_program_V1.py` | PC-side Python GUI tool for selecting a COM port, choosing a `.bin` file, and sending firmware to the bootloader over USB CDC. |
 
 ## USB CDC Packet Format
 
@@ -93,17 +93,21 @@ Each firmware update packet is `1024 bytes`.
 ## Firmware Update Steps
 
 1. Build the application project from `MDKApp/App.uvprojx` and generate `App.bin`.
-2. Copy `App.bin` into the `Flash_program/` folder.
-3. Edit `PORT` in `Flash_program/Flash_program_V1.py` to match the USB CDC COM port.
-4. Put the board into bootloader update mode by holding `PA8` Low.
-5. Run the Python update script.
+2. Put the board into bootloader update mode by holding `PA8` Low.
+3. Run the Python GUI update tool.
 
 ```powershell
 cd Flash_program
 python Flash_program_V1.py
 ```
 
+4. Select the STM32 USB CDC COM port from the `COM Port` drop-down. Click `Refresh` if the board was connected after the tool was opened.
+5. Click `Browse` and select the application firmware `.bin` file. If `Flash_program/App.bin` exists, it is selected by default.
+6. Click `Start Flash` and watch the status text, progress bar, and log output.
+
 When the update succeeds, STM32 replies with `STM_ACK_FINISHED (0x55)`, and the new firmware is stored in the application Flash region.
+
+The `Reset` button clears the GUI status and refreshes the COM port list. If a firmware update is running, `Reset` requests the current operation to stop.
 
 ## Build Projects
 
@@ -128,6 +132,7 @@ Because of this, the application must be linked to start at `0x08020000`. If the
 ## Notes
 
 - The folder name `MDKBootloder` is kept as it exists in the project.
-- `Flash_program/Flash_program_V1.py` uses `pyserial` to communicate over the USB CDC serial port.
-- `FIRMWARE_VERSION`, `PORT`, and `FIRMWARE_FILE` can be changed in `Flash_program/Flash_program_V1.py`.
-- The bootloader erases the application Flash area when `PC_CMD_START` is received, so verify `App.bin` and the selected COM port before starting an update.
+- `Flash_program/Flash_program_V1.py` uses `tkinter` for the GUI and `pyserial` to communicate over the USB CDC serial port.
+- If `pyserial` is not installed, install it with `pip install pyserial`.
+- `FIRMWARE_VERSION` can be changed in `Flash_program/Flash_program_V1.py` if the firmware protocol version changes.
+- The bootloader erases the application Flash area when `PC_CMD_START` is received, so verify the selected `.bin` file and COM port before starting an update.
