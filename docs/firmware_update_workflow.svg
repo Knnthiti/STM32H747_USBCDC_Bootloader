@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="820" viewBox="0 0 1100 820" role="img" aria-labelledby="title desc">
+  <title id="title">STM32H747 USB CDC Bootloader Workflow</title>
+  <desc id="desc">Workflow diagram showing bootloader reset, PA8 mode selection, USB CDC firmware update, Flash writing, and application jump.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { fill: #0f172a; font: 700 28px Arial, sans-serif; }
+      .subtitle { fill: #475569; font: 400 15px Arial, sans-serif; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 10; }
+      .boot { fill: #eff6ff; stroke: #2563eb; }
+      .pc { fill: #f0fdf4; stroke: #16a34a; }
+      .flash { fill: #fff7ed; stroke: #ea580c; }
+      .decision { fill: #fefce8; stroke: #ca8a04; }
+      .done { fill: #fdf2f8; stroke: #db2777; }
+      .label { fill: #0f172a; font: 700 15px Arial, sans-serif; text-anchor: middle; }
+      .small { fill: #334155; font: 400 13px Arial, sans-serif; text-anchor: middle; }
+      .edge { stroke: #334155; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .edgeText { fill: #334155; font: 700 13px Arial, sans-serif; }
+      .note { fill: #475569; font: 400 12px Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1100" height="820"/>
+  <text x="550" y="46" class="title" text-anchor="middle">STM32H747 USB CDC Bootloader Workflow</text>
+  <text x="550" y="72" class="subtitle" text-anchor="middle">Boot selection, USB CDC update protocol, Flash programming, and application jump</text>
+
+  <rect x="410" y="105" width="280" height="62" class="box boot"/>
+  <text x="550" y="130" class="label">Power-on / Reset</text>
+  <text x="550" y="151" class="small">Bootloader starts at 0x08000000</text>
+
+  <rect x="390" y="205" width="320" height="76" class="box boot"/>
+  <text x="550" y="233" class="label">Initialize Bootloader</text>
+  <text x="550" y="254" class="small">HAL, Clock, GPIO, USB CDC</text>
+  <text x="550" y="272" class="small">SysTick, CRC and DMA</text>
+
+  <polygon points="550,322 705,390 550,458 395,390" class="decision"/>
+  <text x="550" y="382" class="label">Check PA8</text>
+  <text x="550" y="404" class="small">every ~10 ms</text>
+
+  <rect x="760" y="350" width="270" height="80" class="box done"/>
+  <text x="895" y="378" class="label">Jump to Application</text>
+  <text x="895" y="399" class="small">Load MSP and reset handler</text>
+  <text x="895" y="417" class="small">Application starts at 0x08020000</text>
+
+  <rect x="80" y="520" width="250" height="70" class="box pc"/>
+  <text x="205" y="548" class="label">PC Update Tool</text>
+  <text x="205" y="569" class="small">Flash_program_V1.py sends App.bin</text>
+
+  <rect x="395" y="520" width="310" height="70" class="box boot"/>
+  <text x="550" y="548" class="label">USB CDC Update Mode</text>
+  <text x="550" y="569" class="small">Receive 1024-byte packets</text>
+
+  <rect x="390" y="630" width="320" height="70" class="box flash"/>
+  <text x="550" y="658" class="label">Validate and Buffer Data</text>
+  <text x="550" y="679" class="small">Check CRC32, copy payload to RAM</text>
+
+  <rect x="750" y="630" width="280" height="70" class="box flash"/>
+  <text x="890" y="658" class="label">Write Buffer to Flash</text>
+  <text x="890" y="679" class="small">Erase/write application region</text>
+
+  <rect x="390" y="745" width="320" height="54" class="box done"/>
+  <text x="550" y="767" class="label">Finish Update</text>
+  <text x="550" y="787" class="small">Reply STM_ACK_FINISHED (0x55)</text>
+
+  <path d="M 550 167 L 550 205" class="edge"/>
+  <path d="M 550 281 L 550 322" class="edge"/>
+  <path d="M 705 390 L 760 390" class="edge"/>
+  <text x="719" y="376" class="edgeText">High</text>
+  <path d="M 550 458 L 550 520" class="edge"/>
+  <text x="563" y="492" class="edgeText">Low</text>
+
+  <path d="M 330 555 L 395 555" class="edge"/>
+  <text x="334" y="540" class="edgeText">START / SENDING</text>
+  <path d="M 550 590 L 550 630" class="edge"/>
+  <path d="M 710 665 L 750 665" class="edge"/>
+  <text x="720" y="650" class="edgeText">WAIT</text>
+  <path d="M 890 630 C 890 595 820 575 705 565" class="edge"/>
+  <text x="805" y="588" class="edgeText">READY</text>
+  <path d="M 550 700 L 550 745" class="edge"/>
+  <text x="565" y="728" class="edgeText">FINISHED</text>
+
+  <text x="80" y="744" class="note">Packet format: Header 4 bytes + Payload 1016 bytes + CRC32 4 bytes</text>
+  <text x="80" y="766" class="note">ACK values: READY 0x49, PAUSE 0x69, FINISHED 0x55</text>
+</svg>
