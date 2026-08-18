@@ -1,6 +1,5 @@
-#include "main_Bootloader.h" // Include the main bootloader header file
+#include "main_Bootloader.h"
 
-// Global variable to track 1-millisecond time intervals
 volatile uint32_t Part_time = 0;
 
 /******************************************************************************
@@ -13,35 +12,34 @@ volatile uint32_t Part_time = 0;
 int main()
 {
 
-	HAL_Init(); // Initialize the Hardware Abstraction Layer (HAL)
+	HAL_Init();
 
-	SystemClock_Init(); // Configure and initialize the system clock
+	SystemClock_Init();
 
-	GPIO_Init(); // Initialize the general-purpose input/output (GPIO) pins
+	GPIO_Init();
 
-	// Initialize CRC calculation using DMA for the received USB CDC data
+	// CRC is calculated over the first 255 words of each 1024-byte packet.
 	CRC_DmaInit((uint32_t)RX_USBCDC_Data.u32RxUSBData, 255);
 
-	GPIO_USB_Init(); // Initialize specific GPIO pins required for USB communication
+	GPIO_USB_Init();
 
-	MX_USB_DEVICE_Init(); // Initialize the USB Device stack (CDC class)
+	MX_USB_DEVICE_Init();
 
-	SystemTickConfig(1000, ENABLE); // Configure the System Tick timer for 1ms interrupts (1000 Hz)
+	SystemTickConfig(1000, ENABLE);
 
 	while (1)
-	{ // Infinite main loop
+	{
 		if (GetTick() - Part_time > 10)
-		{						   // Check if more than 10 milliseconds have passed
-			Part_time = GetTick(); // Reset the 1ms timer counter
+		{
+			Part_time = GetTick();
 
-			// Check if the input pin PA8 is set to High (e.g., button press or jumper)
 			if (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_8) == 1)
 			{
-				bootJumpToApp1(); // Jump execution to the main application in flash memory
+				bootJumpToApp1();
 			}
 			else
 			{
-				PocessCommand(); // Process incoming bootloader commands via USB
+				PocessCommand();
 			}
 		}
 	}

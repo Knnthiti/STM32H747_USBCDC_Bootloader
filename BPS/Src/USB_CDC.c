@@ -32,21 +32,14 @@ USBD_CDC_ItfTypeDef USBD_Interface_fops_FS =
 void GPIO_USB_Init(void)
 {
   LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
 
-  /* GPIO Ports Clock Enable */
   LL_AHB4_GRP1_EnableClock(LL_AHB4_GRP1_PERIPH_GPIOB);
   LL_AHB4_GRP1_EnableClock(LL_AHB4_GRP1_PERIPH_GPIOA);
 
-  /**/
   GPIO_InitStruct.Pin = LL_GPIO_PIN_7;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
 }
 
 /******************************************************************************
@@ -58,12 +51,9 @@ void GPIO_USB_Init(void)
   ******************************************************************************/
 static int8_t CDC_Init_FS(void)
 {
-  /* USER CODE BEGIN 3 */
-  /* Set Application Buffers */
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, (uint8_t*)USBBufferFS.u8TxBufferFS, 0);
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, (uint8_t*)USBBufferFS.u8RxBufferFS);
   return (USBD_OK);
-  /* USER CODE END 3 */
 }
 
 /******************************************************************************
@@ -75,9 +65,7 @@ static int8_t CDC_Init_FS(void)
   ******************************************************************************/
 static int8_t CDC_DeInit_FS(void)
 {
-  /* USER CODE BEGIN 4 */
   return (USBD_OK);
-  /* USER CODE END 4 */
 }
 
 /******************************************************************************
@@ -91,7 +79,6 @@ static int8_t CDC_DeInit_FS(void)
   ******************************************************************************/
 static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 {
-  /* USER CODE BEGIN 5 */
   switch(cmd)
   {
     case CDC_SEND_ENCAPSULATED_COMMAND:
@@ -114,23 +101,6 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 
     break;
 
-  /*******************************************************************************/
-  /* Line Coding Structure                                                       */
-  /*-----------------------------------------------------------------------------*/
-  /* Offset | Field       | Size | Value  | Description                          */
-  /* 0      | dwDTERate   |   4  | Number |Data terminal rate, in bits per second*/
-  /* 4      | bCharFormat |   1  | Number | Stop bits                            */
-  /*                                        0 - 1 Stop bit                       */
-  /*                                        1 - 1.5 Stop bits                    */
-  /*                                        2 - 2 Stop bits                      */
-  /* 5      | bParityType |  1   | Number | Parity                               */
-  /*                                        0 - None                             */
-  /*                                        1 - Odd                              */
-  /*                                        2 - Even                             */
-  /*                                        3 - Mark                             */
-  /*                                        4 - Space                            */
-  /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
-  /*******************************************************************************/
     case CDC_SET_LINE_CODING:
 
     break;
@@ -152,7 +122,6 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
   }
 
   return (USBD_OK);
-  /* USER CODE END 5 */
 }
 
 /******************************************************************************
@@ -167,11 +136,11 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
 {
   uint8_t result = USBD_OK;
-  /* USER CODE BEGIN 13 */
+
   UNUSED(Buf);
   UNUSED(Len);
   UNUSED(epnum);
-  /* USER CODE END 13 */
+
   return result;
 }
 
@@ -188,14 +157,16 @@ static int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
 uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 {
   uint8_t result = USBD_OK;
-  /* USER CODE BEGIN 7 */
+
   USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData;
+
   if (hcdc->TxState != 0){
     return USBD_BUSY;
   }
+
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len);
   result = USBD_CDC_TransmitPacket(&hUsbDeviceFS);
-  /* USER CODE END 7 */
+
   return result;
 }
 
@@ -222,15 +193,19 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
         current_rx_index += *Len;
     }
 	
+	/* Process the packet only after a complete 1024-byte frame is collected. */
 	if (current_rx_index >= u8APP_RX_DATA_SIZE){
 	   CRC_APP_RX_DATA();
 		
 	   current_rx_index = 0;
 		
+		/* Accept firmware payload only when CRC is valid and command is SENDING. */
 		if((My_CRC == Received_CRC) && (RX_USBCDC_Data.u8setting1Byte.u8herder == PC_CMD_SENDING)){
+		/* Skip the first 32-bit header word and copy 254 payload words. */
 		for(uint16_t i = 0 ; i < 254 ; i++){
 			u32BufferProgram[current_program + i] = RX_USBCDC_Data.u32RxUSBData[ 1 + i ];
 		}	
+
 		current_program += 254;
 	    }
     }
@@ -238,6 +213,7 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 	
 	USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
 	USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+
 	return (USBD_OK);
 }
 
@@ -250,11 +226,13 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   ******************************************************************************/
 void CRC_APP_RX_DATA(void){
 	LL_CRC_ResetCRCCalculationUnit(CRC);
+
 	LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_0);
 	
 	while(LL_DMA_IsActiveFlag_TC0(DMA1) == 0) {
 		
     }
+
     LL_DMA_ClearFlag_TC0(DMA1);
 	
 	My_CRC = LL_CRC_ReadData32(CRC);
@@ -283,7 +261,7 @@ void CRC_DmaInit(uint32_t u32MemAddr, uint32_t u32memLength) {
     LL_CRC_SetPolynomialSize(CRC, LL_CRC_POLYLENGTH_32B);
     LL_CRC_SetInputDataReverseMode(CRC, LL_CRC_INDATA_REVERSE_NONE);
     LL_CRC_SetInitialData(CRC, 0xFFFFFFFF);
-	LL_CRC_SetPolynomialCoef(CRC, 0x4C11DB7);
+    LL_CRC_SetPolynomialCoef(CRC, 0x4C11DB7);
     
     /* 2. Enable Clocks */
     LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_DMA1); // DMA1
@@ -341,6 +319,7 @@ uint32_t software_crc32(uint32_t *data, uint16_t length) {
             }
         }
     }
+
     return crc;
 }
 
